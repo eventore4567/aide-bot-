@@ -61,14 +61,6 @@ class CenterAutoPostCog(commands.Cog):
             if channel is not None:
                 await self._publish_or_update(channel)
 
-    @commands.Cog.listener()
-    async def on_guild_channel_create(self, channel: discord.abc.GuildChannel) -> None:
-        # Important : le centre riche ne doit JAMAIS être publié dans Bienvenue.
-        # /setup crée un salon dédié et publie un panneau d'accueil différent.
-        if not isinstance(channel, discord.TextChannel) or channel.name != CENTER_CHANNEL:
-            return
-        await self._publish_or_update(channel)
-
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(CenterAutoPostCog(bot))
