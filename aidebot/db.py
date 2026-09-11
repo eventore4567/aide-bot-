@@ -79,6 +79,33 @@ class Database:
                 state TEXT NOT NULL DEFAULT 'pending',
                 UNIQUE(guild_id, invitee_id)
             );
+            CREATE TABLE IF NOT EXISTS favorites (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                resource_key TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, user_id, resource_key)
+            );
+            CREATE TABLE IF NOT EXISTS challenge_submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                challenge_key TEXT NOT NULL,
+                proof TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                reviewer_id INTEGER,
+                created_at INTEGER NOT NULL,
+                UNIQUE(guild_id, user_id, challenge_key, status)
+            );
+            CREATE TABLE IF NOT EXISTS mentorships (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                student_id INTEGER NOT NULL,
+                mentor_id INTEGER,
+                topic TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at INTEGER NOT NULL
+            );
             """
         )
         await self.conn.commit()
@@ -114,6 +141,11 @@ class Database:
         skills = {s.strip() for s in row["skills"].split(",") if s.strip()}
         skills.add(skill.strip().lower())
         await self._db().execute("UPDATE profiles SET skills=? WHERE guild_id=? AND user_id=?", (",".join(sorted(skills)), guild_id, user_id))
+        await self._db().commit()
+
+    async def add_reputation(self, guild_id: int, user_id: int, amount: int) -> None:
+        await self.ensure_profile(guild_id, user_id)
+        await self._db().execute("UPDATE profiles SET reputation=reputation+? WHERE guild_id=? AND user_id=?", (amount, guild_id, user_id))
         await self._db().commit()
 
     async def create_request(self, **values: Any) -> int:
@@ -165,6 +197,11 @@ class Database:
         row = await cur.fetchone()
         return int(row["credits"]) if row else 0
 
+    async def validated_invites(self, guild_id: int, user_id: int) -> int:
+        cur = await self._db().execute("SELECT COUNT(*) AS total FROM pending_invites WHERE guild_id=? AND inviter_id=? AND state='valid'", (guild_id, user_id))
+        row = await cur.fetchone()
+        return int(row["total"]) if row else 0
+
     async def consume_invite_credit(self, guild_id: int, user_id: int) -> bool:
         await self._db().execute("BEGIN IMMEDIATE")
         cur = await self._db().execute("SELECT credits FROM invite_credits WHERE guild_id=? AND user_id=?", (guild_id, user_id))
@@ -212,3 +249,101 @@ class Database:
         except aiosqlite.IntegrityError:
             await self._db().rollback()
             return False
+
+    async def add_favorite(self, guild_id: int, user_id: int, resource_key: str) -> bool:
+        cur = await self._db().execute(
+            "INSERT OR IGNORE INTO favorites(guild_id,user_id,resource_key,created_at) VALUES (?,?,?,?)",
+            (guild_id, user_id, resource_key, int(time.time())),
+        )
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def remove_favorite(self, guild_id: int, user_id: int, resource_key: str) -> bool:
+        cur = await self._db().execute("DELETE FROM favorites WHERE guild_id=? AND user_id=? AND resource_key=?", (guild_id, user_id, resource_key))
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def favorites(self, guild_id: int, user_id: int) -> list[str]:
+        cur = await self._db().execute("SELECT resource_key FROM favorites WHERE guild_id=? AND user_id=? ORDER BY created_at DESC", (guild_id, user_id))
+        return [str(row["resource_key"]) for row in await cur.fetchall()]
+
+    async def submit_challenge(self, guild_id: int, user_id: int, challenge_key: str, proof: str) -> int | None:
+        try:
+            cur = await self._db().execute(
+                "INSERT INTO challenge_submissions(guild_id,user_id,challenge_key,proof,created_at) VALUES (?,?,?,?,?)",
+                (guild_id, user_id, challenge_key, proof, int(time.time())),
+            )
+            await self._db().commit()
+            return int(cur.lastrowid)
+        except aiosqlite.IntegrityError:
+            await self._db().rollback()
+            return None
+
+    async def challenge_submission(self, submission_id: int) -> aiosqlite.Row | None:
+        cur = await self._db().execute("SELECT * FROM challenge_submissions WHERE id=?", (submission_id,))
+        return await cur.fetchone()
+
+    async def resolve_challenge(self, submission_id: int, reviewer_id: int, accepted: bool) -> bool:
+        cur = await self._db().execute(
+            "UPDATE challenge_submissions SET status=?, reviewer_id=? WHERE id=? AND status='pending'",
+            ("accepted" if accepted else "rejected", reviewer_id, submission_id),
+        )
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def create_mentorship(self, guild_id: int, student_id: int, topic: str) -> int | None:
+        cur = await self._db().execute(
+            "SELECT id FROM mentorships WHERE guild_id=? AND student_id=? AND status IN ('open','active') ORDER BY id DESC LIMIT 1",
+            (guild_id, student_id),
+        )
+        if await cur.fetchone():
+            return None
+        created = await self._db().execute(
+            "INSERT INTO mentorships(guild_id,student_id,topic,created_at) VALUES (?,?,?,?)",
+            (guild_id, student_id, topic, int(time.time())),
+        )
+        await self._db().commit()
+        return int(created.lastrowid)
+
+    async def mentorship(self, mentorship_id: int) -> aiosqlite.Row | None:
+        cur = await self._db().execute("SELECT * FROM mentorships WHERE id=?", (mentorship_id,))
+        return await cur.fetchone()
+
+    async def claim_mentorship(self, mentorship_id: int, mentor_id: int) -> bool:
+        cur = await self._db().execute(
+            "UPDATE mentorships SET mentor_id=?, status='active' WHERE id=? AND status='open' AND mentor_id IS NULL",
+            (mentor_id, mentorship_id),
+        )
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def close_mentorship(self, mentorship_id: int) -> bool:
+        cur = await self._db().execute("UPDATE mentorships SET status='completed' WHERE id=? AND status='active'", (mentorship_id,))
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def dashboard_stats(self, guild_id: int) -> dict[str, int | float]:
+        queries = {
+            "open_requests": "SELECT COUNT(*) AS n FROM requests WHERE guild_id=? AND status IN ('open','assigned','in_progress','payment_pending')",
+            "active_trainings": "SELECT COUNT(*) AS n FROM requests WHERE guild_id=? AND status IN ('assigned','in_progress')",
+            "pending_challenges": "SELECT COUNT(*) AS n FROM challenge_submissions WHERE guild_id=? AND status='pending'",
+            "open_mentorships": "SELECT COUNT(*) AS n FROM mentorships WHERE guild_id=? AND status IN ('open','active')",
+            "available_helpers": "SELECT COUNT(*) AS n FROM profiles WHERE guild_id=? AND helper_available=1",
+        }
+        stats: dict[str, int | float] = {}
+        for key, sql in queries.items():
+            cur = await self._db().execute(sql, (guild_id,))
+            row = await cur.fetchone()
+            stats[key] = int(row["n"]) if row else 0
+        cur = await self._db().execute("SELECT COUNT(*) AS n, COALESCE(AVG(rating),0) AS avg_rating FROM reviews WHERE guild_id=?", (guild_id,))
+        row = await cur.fetchone()
+        stats["reviews"] = int(row["n"]) if row else 0
+        stats["avg_rating"] = float(row["avg_rating"]) if row else 0.0
+        return stats
+
+    async def leaderboard(self, guild_id: int, limit: int = 10) -> list[aiosqlite.Row]:
+        cur = await self._db().execute(
+            "SELECT * FROM profiles WHERE guild_id=? ORDER BY reputation DESC, helped_count DESC, trainings_completed DESC LIMIT ?",
+            (guild_id, limit),
+        )
+        return list(await cur.fetchall())
