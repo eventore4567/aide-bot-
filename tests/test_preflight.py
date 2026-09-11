@@ -96,7 +96,7 @@ def test_application_states_match_database_workflow():
         db = AideBotDatabase(":memory:")
         await db.connect()
         try:
-            for status in ("pending", "accepted", "rejected"):
+            for status in ("pending", "processing", "accepted", "rejected"):
                 await db._db().execute(
                     """INSERT INTO applications(
                            guild_id,user_id,target_role,status,created_at
@@ -106,6 +106,10 @@ def test_application_states_match_database_workflow():
             await db._db().commit()
             counts = await database_integrity_counts(db._db())
             assert counts["invalid_applications"] == 0
+            assert counts["processing_applications"] == 1
+            summary = summarize_preflight(hard_blockers=0, integrity_counts=counts)
+            assert summary.ready is True
+            assert summary.warning_count == 1
 
             await db._db().execute(
                 """INSERT INTO applications(
