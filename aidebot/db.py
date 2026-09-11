@@ -106,6 +106,33 @@ class Database:
                 status TEXT NOT NULL DEFAULT 'open',
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS applications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                target_role TEXT NOT NULL,
+                experience TEXT NOT NULL DEFAULT '',
+                skills TEXT NOT NULL DEFAULT '',
+                availability TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                reviewer_id INTEGER,
+                review_reason TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS applications_one_pending_per_user
+                ON applications(guild_id, user_id) WHERE status='pending';
+            CREATE TABLE IF NOT EXISTS reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                request_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                trainer_id INTEGER,
+                remind_at INTEGER NOT NULL,
+                state TEXT NOT NULL DEFAULT 'pending',
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS reminders_due_idx ON reminders(state, remind_at);
             """
         )
         await self.conn.commit()
@@ -135,6 +162,13 @@ class Database:
         await self.ensure_profile(guild_id, user_id)
         await self._db().execute("UPDATE profiles SET helper_available=? WHERE guild_id=? AND user_id=?", (1 if available else 0, guild_id, user_id))
         await self._db().commit()
+
+    async def available_helpers(self, guild_id: int, limit: int = 10) -> list[aiosqlite.Row]:
+        cur = await self._db().execute(
+            "SELECT * FROM profiles WHERE guild_id=? AND helper_available=1 ORDER BY reputation DESC, helped_count DESC LIMIT ?",
+            (guild_id, limit),
+        )
+        return list(await cur.fetchall())
 
     async def add_skill(self, guild_id: int, user_id: int, skill: str) -> None:
         row = await self.profile(guild_id, user_id)
@@ -322,6 +356,100 @@ class Database:
         await self._db().commit()
         return cur.rowcount > 0
 
+    async def create_application(
+        self,
+        guild_id: int,
+        user_id: int,
+        target_role: str,
+        experience: str,
+        skills: str,
+        availability: str,
+    ) -> int | None:
+        try:
+            cur = await self._db().execute(
+                """INSERT INTO applications(guild_id,user_id,target_role,experience,skills,availability,created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (guild_id, user_id, target_role, experience, skills, availability, int(time.time())),
+            )
+            await self._db().commit()
+            return int(cur.lastrowid)
+        except aiosqlite.IntegrityError:
+            await self._db().rollback()
+            return None
+
+    async def application(self, application_id: int) -> aiosqlite.Row | None:
+        cur = await self._db().execute("SELECT * FROM applications WHERE id=?", (application_id,))
+        return await cur.fetchone()
+
+    async def resolve_application(
+        self,
+        application_id: int,
+        reviewer_id: int,
+        accepted: bool,
+        reason: str = "",
+    ) -> bool:
+        cur = await self._db().execute(
+            """UPDATE applications
+               SET status=?, reviewer_id=?, review_reason=?
+               WHERE id=? AND status='pending'""",
+            ("accepted" if accepted else "rejected", reviewer_id, reason[:500], application_id),
+        )
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def pending_applications(self, guild_id: int, limit: int = 20) -> list[aiosqlite.Row]:
+        cur = await self._db().execute(
+            "SELECT * FROM applications WHERE guild_id=? AND status='pending' ORDER BY created_at ASC LIMIT ?",
+            (guild_id, limit),
+        )
+        return list(await cur.fetchall())
+
+    async def create_reminder(
+        self,
+        guild_id: int,
+        request_id: int,
+        channel_id: int,
+        user_id: int,
+        trainer_id: int | None,
+        remind_at: int,
+    ) -> int:
+        await self._db().execute(
+            "UPDATE reminders SET state='cancelled' WHERE request_id=? AND state='pending'",
+            (request_id,),
+        )
+        cur = await self._db().execute(
+            """INSERT INTO reminders(guild_id,request_id,channel_id,user_id,trainer_id,remind_at,created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (guild_id, request_id, channel_id, user_id, trainer_id, remind_at, int(time.time())),
+        )
+        await self._db().commit()
+        return int(cur.lastrowid)
+
+    async def cancel_reminders_for_request(self, request_id: int) -> int:
+        cur = await self._db().execute(
+            "UPDATE reminders SET state='cancelled' WHERE request_id=? AND state='pending'",
+            (request_id,),
+        )
+        await self._db().commit()
+        return cur.rowcount
+
+    async def due_reminders(self, now: int, limit: int = 50) -> list[aiosqlite.Row]:
+        cur = await self._db().execute(
+            "SELECT * FROM reminders WHERE state='pending' AND remind_at<=? ORDER BY remind_at ASC LIMIT ?",
+            (now, limit),
+        )
+        return list(await cur.fetchall())
+
+    async def finish_reminder(self, reminder_id: int, state: str = "sent") -> bool:
+        if state not in {"sent", "failed", "cancelled"}:
+            raise ValueError("Invalid reminder state")
+        cur = await self._db().execute(
+            "UPDATE reminders SET state=? WHERE id=? AND state='pending'",
+            (state, reminder_id),
+        )
+        await self._db().commit()
+        return cur.rowcount > 0
+
     async def dashboard_stats(self, guild_id: int) -> dict[str, int | float]:
         queries = {
             "open_requests": "SELECT COUNT(*) AS n FROM requests WHERE guild_id=? AND status IN ('open','assigned','in_progress','payment_pending')",
@@ -329,6 +457,8 @@ class Database:
             "pending_challenges": "SELECT COUNT(*) AS n FROM challenge_submissions WHERE guild_id=? AND status='pending'",
             "open_mentorships": "SELECT COUNT(*) AS n FROM mentorships WHERE guild_id=? AND status IN ('open','active')",
             "available_helpers": "SELECT COUNT(*) AS n FROM profiles WHERE guild_id=? AND helper_available=1",
+            "pending_applications": "SELECT COUNT(*) AS n FROM applications WHERE guild_id=? AND status='pending'",
+            "pending_reminders": "SELECT COUNT(*) AS n FROM reminders WHERE guild_id=? AND state='pending'",
         }
         stats: dict[str, int | float] = {}
         for key, sql in queries.items():
