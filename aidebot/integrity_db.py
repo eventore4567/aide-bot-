@@ -96,6 +96,46 @@ class IntegrityDatabase(BaseAideBotDatabase):
                 await db.rollback()
                 raise
 
+    async def complete_mentorship_once(self, mentorship_id: int, guild_id: int):
+        """Complete one active mentorship and reward its mentor in one commit."""
+        async with self.transaction_lock:
+            db = self._db()
+            await db.execute("BEGIN IMMEDIATE")
+            try:
+                cur = await db.execute(
+                    """SELECT * FROM mentorships
+                       WHERE id=? AND guild_id=?""",
+                    (mentorship_id, guild_id),
+                )
+                row = await cur.fetchone()
+                if row is None or row["status"] != "active" or row["mentor_id"] is None:
+                    await db.rollback()
+                    return None
+
+                mentor_id = int(row["mentor_id"])
+                await db.execute(
+                    "INSERT OR IGNORE INTO profiles(guild_id,user_id) VALUES (?,?)",
+                    (guild_id, mentor_id),
+                )
+                changed = await db.execute(
+                    """UPDATE mentorships
+                       SET status='completed'
+                       WHERE id=? AND guild_id=? AND status='active'""",
+                    (mentorship_id, guild_id),
+                )
+                if changed.rowcount != 1:
+                    await db.rollback()
+                    return None
+                await db.execute(
+                    "UPDATE profiles SET reputation=reputation+30 WHERE guild_id=? AND user_id=?",
+                    (guild_id, mentor_id),
+                )
+                await db.commit()
+                return row
+            except Exception:
+                await db.rollback()
+                raise
+
     async def add_review(
         self,
         guild_id: int,

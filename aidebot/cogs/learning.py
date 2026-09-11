@@ -176,10 +176,9 @@ class LearningCog(commands.Cog):
         allowed = interaction.user.id in {row["student_id"], row["mentor_id"]} or can(interaction.user, "training.manage")
         if not allowed:
             return await interaction.response.send_message("Tu ne peux pas terminer ce mentorat.", ephemeral=True)
-        if not await self.bot.db.close_mentorship(id):
-            return await interaction.response.send_message("Ce mentorat n’est pas actif.", ephemeral=True)
-        if row["mentor_id"]:
-            await self.bot.db.add_reputation(interaction.guild.id, row["mentor_id"], 30)
+        completed = await self.bot.db.complete_mentorship_once(id, interaction.guild.id)
+        if completed is None:
+            return await interaction.response.send_message("Ce mentorat n’est pas actif ou a déjà été terminé.", ephemeral=True)
         await _audit(interaction.guild, "Mentorat terminé", f"#{id} • terminé par {interaction.user.mention}")
         await interaction.response.send_message("Mentorat terminé. Le mentor reçoit **+30 réputation**.")
 
