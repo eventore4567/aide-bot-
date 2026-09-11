@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from aidebot.blueprint import CATEGORY_SPECS, PERMANENT_CHANNEL_COUNT
 from aidebot.cogs.center_autopost import CENTER_CHANNEL
 from aidebot.public_panels import (
@@ -10,7 +12,7 @@ from aidebot.public_panels import (
     videos_panel_embed,
     welcome_embed,
 )
-from main import PUBLIC_SLASH_COMMANDS
+from main import PUBLIC_SLASH_COMMANDS, prune_public_slash_commands
 
 
 def _channel_names() -> list[str]:
@@ -67,3 +69,27 @@ def test_public_panels_are_distinct_and_discord_safe():
 
 def test_only_setup_and_buy_are_public_slash_commands():
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
+
+
+def test_pruner_handles_groups_without_type_attribute():
+    class FakeTree:
+        def __init__(self):
+            self.commands = [
+                SimpleNamespace(name="setup", type="slash"),
+                SimpleNamespace(name="buy", type="slash"),
+                SimpleNamespace(name="formation"),  # app_commands.Group shape
+                SimpleNamespace(name="sante", type="slash"),
+            ]
+            self.removed = []
+
+        def get_commands(self):
+            return list(self.commands)
+
+        def remove_command(self, name, **kwargs):
+            self.removed.append((name, kwargs))
+
+    tree = FakeTree()
+    prune_public_slash_commands(tree)
+    assert ("formation", {}) in tree.removed
+    assert ("sante", {"type": "slash"}) in tree.removed
+    assert all(name not in {"setup", "buy"} for name, _kwargs in tree.removed)
