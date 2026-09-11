@@ -6,30 +6,72 @@ FORMATIONS = {
         "description": "Comprendre l’interface, les salons, rôles, messages, sécurité et bonnes pratiques.",
         "steps": ["Découvrir Discord", "Salons et catégories", "Rôles", "Permissions", "Bots", "Sécurité"],
         "vip": False,
+        "kind": "classique",
+        "difficulty": "Débutant",
+        "duration": "45–75 min",
     },
     "serveur": {
         "title": "Créer son premier serveur",
         "description": "Construire un serveur propre, logique, sécurisé et prêt à accueillir une communauté.",
         "steps": ["Objectif", "Structure", "Rôles", "Permissions", "Modération", "Sécurité", "Vérification finale"],
         "vip": False,
+        "kind": "classique",
+        "difficulty": "Débutant",
+        "duration": "60–90 min",
     },
     "permissions": {
         "title": "Permissions, modération et sécurité",
         "description": "Comprendre les permissions Discord, la hiérarchie et les protections anti-abus.",
         "steps": ["Hiérarchie", "Permissions salon", "Permissions rôle", "Modération", "Audit", "Exercice pratique"],
         "vip": False,
+        "kind": "classique",
+        "difficulty": "Débutant → intermédiaire",
+        "duration": "60–90 min",
     },
     "bot": {
         "title": "Créer son premier bot Discord",
         "description": "Découvrir Python/discord.py et créer un petit bot propre avec commandes slash.",
         "steps": ["Préparer le projet", "Token et sécurité", "Premier démarrage", "Commande /ping", "Embeds", "Permissions", "Déploiement"],
         "vip": False,
+        "kind": "classique",
+        "difficulty": "Débutant",
+        "duration": "75–120 min",
     },
     "vip": {
         "title": "Formation VIP / accompagnement",
         "description": "Accompagnement personnalisé, vocal, audit, sécurité avancée, bot ou serveur selon le besoin.",
-        "steps": ["Diagnostic", "Plan personnalisé", "Accompagnement", "Vérification finale"],
+        "steps": ["Diagnostic", "Plan personnalisé", "Accompagnement", "Exercice", "Vérification finale"],
         "vip": True,
+        "kind": "vip",
+        "difficulty": "Sur mesure",
+        "duration": "Selon objectif",
+    },
+    "serveur-pro": {
+        "title": "Extension VIP — Serveur professionnel",
+        "description": "Architecture complète, permissions avancées, onboarding, tickets, logs, staff et audit final.",
+        "steps": ["Audit initial", "Architecture", "Permissions", "Onboarding", "Support", "Staff", "Audit final"],
+        "vip": True,
+        "kind": "extension",
+        "difficulty": "Intermédiaire",
+        "duration": "90–150 min",
+    },
+    "bot-avance": {
+        "title": "Extension VIP — Bot avancé",
+        "description": "Structurer un bot maintenable avec base de données, permissions, logs, tests et déploiement propre.",
+        "steps": ["Architecture", "Base de données", "Permissions", "Erreurs", "Logs", "Tests", "Déploiement"],
+        "vip": True,
+        "kind": "extension",
+        "difficulty": "Intermédiaire",
+        "duration": "120–180 min",
+    },
+    "securite-avancee": {
+        "title": "Extension VIP — Sécurité avancée",
+        "description": "Audit détaillé d’un serveur, hiérarchie, rôles sensibles, anti-abus, procédures et plan d’urgence.",
+        "steps": ["Cartographie", "Audit rôles", "Audit salons", "Bots", "Anti-abus", "Plan d’urgence", "Contrôle final"],
+        "vip": True,
+        "kind": "extension",
+        "difficulty": "Intermédiaire → avancé",
+        "duration": "90–150 min",
     },
 }
 
@@ -40,6 +82,8 @@ RESOURCES = {
     "staff": "Checklist : responsabilités écrites, permissions minimales, procédure de sanction, procédure ticket et journalisation des actions sensibles.",
     "tickets": "Checklist : catégories privées, permissions minimales, transcript ou résumé de fin, propriétaire clair, logs et fermeture propre.",
     "anti-raid": "Checklist : permissions minimales, verification level adapté, limites de création, logs, rôles sensibles séparés et plan d’urgence.",
+    "lancement": "Checklist : identité claire, salon bienvenue, règles, rôles, permissions, tickets, logs, compte de test, sauvegarde des données et plan de support.",
+    "formation": "Checklist : objectif clair, niveau du membre, étapes courtes, exercice pratique, validation finale, ressource récapitulative et avis.",
 }
 
 KNOWLEDGE_BASE = {
@@ -78,6 +122,21 @@ KNOWLEDGE_BASE = {
         "tags": ("raid", "anti-raid", "sécurité", "modération"),
         "summary": "Réduis les permissions dangereuses, protège les rôles supérieurs, active des logs exploitables et garde une procédure d’urgence simple.",
     },
+    "helpers": {
+        "title": "Bien aider un membre",
+        "tags": ("helper", "aide", "entraide", "support", "débutant"),
+        "summary": "Commence par comprendre le problème, donne une étape à la fois, vérifie le résultat et évite de demander des permissions ou secrets inutiles.",
+    },
+    "formation": {
+        "title": "Suivre une formation efficacement",
+        "tags": ("formation", "apprendre", "progression", "exercice", "mentor"),
+        "summary": "Fixe un objectif précis, avance étape par étape, pratique après chaque notion et garde une ressource récapitulative pour refaire seul.",
+    },
+    "invites": {
+        "title": "Invitations et formation classique",
+        "tags": ("invitation", "invite", "formation", "gratuit", "crédit"),
+        "summary": "Une invitation n’est comptée qu’après validation. Un crédit valide peut débloquer une formation classique ; les faux comptes ne doivent pas compter.",
+    },
 }
 
 CHALLENGES = {
@@ -104,6 +163,12 @@ CHALLENGES = {
         "difficulty": "Intermédiaire",
         "description": "Analyse un serveur test et relève au moins cinq risques de permissions ou d’organisation, puis propose une correction pour chacun.",
         "reward": 80,
+    },
+    "helper-1": {
+        "title": "Aider sans faire à la place",
+        "difficulty": "Débutant",
+        "description": "Prends un problème Discord fictif, écris un diagnostic puis une réponse en étapes qui permet au membre de comprendre et refaire seul.",
+        "reward": 45,
     },
 }
 
