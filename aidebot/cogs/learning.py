@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from aidebot.catalog import CHALLENGES, INVITE_REWARDS, KNOWLEDGE_BASE, RESOURCES, invite_reward_for, search_knowledge
+from aidebot.challenge_workflow import challenge_already_completed, resolve_challenge_atomic
 from aidebot.permissions import can
 
 
@@ -89,6 +90,11 @@ class LearningCog(commands.Cog):
         key = challenge.casefold().strip()
         if key not in CHALLENGES:
             return await interaction.response.send_message("Challenge inconnu. Utilise `/challenge liste`.", ephemeral=True)
+        if await challenge_already_completed(self.bot.db._db(), interaction.guild.id, interaction.user.id, key):
+            return await interaction.response.send_message(
+                "Ce challenge est déjà validé sur ton profil. La récompense ne peut être obtenue qu’une seule fois.",
+                ephemeral=True,
+            )
         submission_id = await self.bot.db.submit_challenge(interaction.guild.id, interaction.user.id, key, preuve[:1500])
         if submission_id is None:
             return await interaction.response.send_message("Tu as déjà une soumission en attente pour ce challenge.", ephemeral=True)
@@ -113,12 +119,17 @@ class LearningCog(commands.Cog):
             return await interaction.response.send_message("Soumission introuvable.", ephemeral=True)
         if row["status"] != "pending":
             return await interaction.response.send_message("Cette soumission a déjà été traitée.", ephemeral=True)
-        changed = await self.bot.db.resolve_challenge(id, interaction.user.id, accepte)
-        if not changed:
-            return await interaction.response.send_message("Impossible de traiter cette soumission.", ephemeral=True)
-        reward = CHALLENGES.get(row["challenge_key"], {}).get("reward", 0)
-        if accepte and reward:
-            await self.bot.db.add_reputation(interaction.guild.id, row["user_id"], int(reward))
+        reward = int(CHALLENGES.get(row["challenge_key"], {}).get("reward", 0))
+        result = await resolve_challenge_atomic(
+            self.bot.db._db(),
+            submission_id=id,
+            guild_id=interaction.guild.id,
+            reviewer_id=interaction.user.id,
+            accepted=accepte,
+            reward=reward,
+        )
+        if not result.changed:
+            return await interaction.response.send_message("Cette soumission a été traitée entre-temps.", ephemeral=True)
         await _audit(interaction.guild, "Challenge traité", f"#{id} • {'accepté' if accepte else 'refusé'} par {interaction.user.mention}")
         await interaction.response.send_message(f"Challenge **{'accepté' if accepte else 'refusé'}**." + (f" +{reward} réputation." if accepte else ""), ephemeral=True)
 
