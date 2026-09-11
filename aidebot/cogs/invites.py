@@ -6,6 +6,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from aidebot.invite_integrity import finalize_pending_invite
+
 
 class InvitesCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -82,15 +84,18 @@ class InvitesCog(commands.Cog):
             guild = self.bot.get_guild(row["guild_id"])
             member = guild.get_member(row["invitee_id"]) if guild else None
             valid = bool(member and not member.bot)
+
+            finalized = await finalize_pending_invite(self.bot.db, row["id"], valid)
+            if finalized is None:
+                # Another validator/retry already finalized this invite.
+                continue
+
             if valid:
-                await self.bot.db.add_invite_credit(row["guild_id"], row["inviter_id"], 1)
-                await self.bot.db.finish_pending_invite(row["id"], True)
                 if guild:
                     total = await self.bot.db.validated_invites(guild.id, row["inviter_id"])
                     await self._log(guild, "Invitation validée", f"<@{row['inviter_id']}> gagne **1 crédit formation** grâce à <@{row['invitee_id']}>. Total validé : **{total}**.")
                     await self._award_invite_roles(guild, row["inviter_id"])
             else:
-                await self.bot.db.finish_pending_invite(row["id"], False)
                 if guild:
                     await self._log(guild, "Invitation refusée", f"L'invitation liée à <@{row['invitee_id']}> n'a pas été validée : le membre n'est plus présent.")
 
