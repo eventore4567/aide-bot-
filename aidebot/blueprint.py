@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import discord
 
-# Permissions Discord natives volontairement minimales.
-# Les actions Aide Bot sensibles passent par aidebot.permissions (fail-closed),
-# au lieu de donner Administrateur / Gérer le serveur par facilité.
+# Structure V40 : peu de salons, chacun a un rôle clair. Les membres utilisent
+# des panneaux/boutons ; les commandes slash restent volontairement minimales.
 ROLE_SPECS = [
     ("👑・Direction", 0xF1C40F, dict(manage_channels=True, manage_roles=True, manage_messages=True)),
     ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True)),
@@ -18,11 +17,13 @@ ROLE_SPECS = [
     ("👤・Membre", 0x95A5A6, dict()),
 ]
 
+# Bienvenue, formations, vidéos, boutique et tickets ont chacun leur propre
+# panneau. Aucun contenu de formation ne doit être recopié dans Bienvenue.
 CATEGORY_SPECS = [
     ("━━ INFORMATIONS ━━", ["👋・bienvenue", "📜・règlement", "📢・annonces"]),
-    ("━━ APPRENDRE ━━", ["🎓・formations", "📚・ressources", "🧩・presets"]),
-    ("━━ COMMUNAUTÉ ━━", ["💬・général", "🆘・entraide", "⭐・avis"]),
-    ("━━ SERVICES ━━", ["🎫・commencer", "🧑‍🏫・recrutement", "💎・vip"]),
+    ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🎓・formations", "🎥・videos-guides"]),
+    ("━━ BOUTIQUE ━━", ["🛒・shop"]),
+    ("━━ SERVICES ━━", ["🎫・ouvrir-ticket", "⭐・avis", "🧑‍🏫・recrutement"]),
     ("━━ STAFF ━━", ["📋・staff", "🧾・logs", "🧠・suivi-formations"]),
 ]
 

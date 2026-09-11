@@ -5,90 +5,303 @@ from discord import app_commands
 from discord.ext import commands
 
 from aidebot.blueprint import CATEGORY_SPECS, ROLE_SPECS, role_permissions
-from aidebot.catalog import CHALLENGES, FORMATIONS, INVITE_REWARDS
-from aidebot.message_reconcile import find_bot_embed_by_title, upsert_bot_embed_by_title
+from aidebot.cogs.center import CenterView, center_embed
+from aidebot.cogs.training import TrainingPanel
+from aidebot.experience_content import BANNER_URL
+from aidebot.message_reconcile import find_bot_embed_by_title
+from aidebot.public_panels import (
+    SHOP_TITLE,
+    TICKET_TITLE,
+    VIDEOS_TITLE,
+    WELCOME_TITLE,
+    ShopView,
+    TicketEntryView,
+    VideosPanelView,
+    WelcomeView,
+    shop_embed,
+    ticket_embed,
+    videos_panel_embed,
+    welcome_embed,
+)
 from aidebot.setup_guard import canonical_collisions, format_collisions
+
+
+READ_ONLY_PUBLIC = {
+    "👋・bienvenue",
+    "📜・règlement",
+    "📢・annonces",
+    "🎓・centre-aide",
+    "🎓・formations",
+    "🎥・videos-guides",
+    "🛒・shop",
+    "🎫・ouvrir-ticket",
+    "⭐・avis",
+    "🧑‍🏫・recrutement",
+}
+
+LEGACY_CHANNEL_MIGRATIONS = {
+    "🎫・commencer": "🎫・ouvrir-ticket",
+    "💎・vip": "🛒・shop",
+}
+
+LEGACY_WELCOME_TITLES = {
+    "Bienvenue sur Aide Bot",
+    "Aide Bot — Centre d’aide & formations",
+    "Aide Bot — Formations",
+    "Centre d’apprentissage",
+    "Presets, challenges et récompenses",
+}
 
 
 class SetupServerCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    async def _reconcile_category_permissions(self, guild: discord.Guild, category: discord.CategoryChannel, roles: dict[str, discord.Role]) -> None:
+    async def _reconcile_category_permissions(
+        self,
+        guild: discord.Guild,
+        category: discord.CategoryChannel,
+        roles: dict[str, discord.Role],
+    ) -> None:
         if category.name != "━━ STAFF ━━":
             return
         await category.set_permissions(guild.default_role, view_channel=False, reason="Aide Bot — staff privé")
-        await category.set_permissions(roles["👑・Direction"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Direction")
-        await category.set_permissions(roles["📘・Responsable Formation"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Responsable Formation")
+        await category.set_permissions(
+            roles["👑・Direction"],
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True,
+            reason="Aide Bot — Direction",
+        )
+        await category.set_permissions(
+            roles["📘・Responsable Formation"],
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True,
+            reason="Aide Bot — Responsable Formation",
+        )
         for role_name in ("🎓・Formateur", "🤝・Helper", "👤・Membre"):
             await category.set_permissions(roles[role_name], view_channel=False, reason="Aide Bot — staff fail-closed")
 
-    async def _reconcile_channel_permissions(self, guild: discord.Guild, channel: discord.TextChannel, roles: dict[str, discord.Role]) -> None:
+    async def _reconcile_channel_permissions(
+        self,
+        guild: discord.Guild,
+        channel: discord.TextChannel,
+        roles: dict[str, discord.Role],
+    ) -> None:
         if channel.category and channel.category.name == "━━ STAFF ━━":
             await channel.set_permissions(guild.default_role, view_channel=False, reason="Aide Bot — salon staff privé")
-            await channel.set_permissions(roles["👑・Direction"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Direction")
-            await channel.set_permissions(roles["📘・Responsable Formation"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Responsable Formation")
+            await channel.set_permissions(
+                roles["👑・Direction"],
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                manage_messages=True,
+                reason="Aide Bot — Direction",
+            )
+            await channel.set_permissions(
+                roles["📘・Responsable Formation"],
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                reason="Aide Bot — Responsable Formation",
+            )
             for role_name in ("🎓・Formateur", "🤝・Helper", "👤・Membre"):
                 await channel.set_permissions(roles[role_name], view_channel=False, reason="Aide Bot — salon staff fail-closed")
             return
 
-        if channel.name in {"📢・annonces", "📜・règlement"}:
-            await channel.set_permissions(guild.default_role, view_channel=True, send_messages=False, reason="Aide Bot — lecture seule")
-            await channel.set_permissions(roles["👑・Direction"], view_channel=True, send_messages=True, manage_messages=True, reason="Aide Bot — Direction")
-        elif channel.name == "👋・bienvenue":
-            await channel.set_permissions(guild.default_role, view_channel=True, send_messages=False, reason="Aide Bot — accueil lecture seule")
-            await channel.set_permissions(roles["👑・Direction"], view_channel=True, send_messages=True, reason="Aide Bot — Direction")
+        if channel.name in READ_ONLY_PUBLIC:
+            await channel.set_permissions(
+                guild.default_role,
+                view_channel=True,
+                send_messages=False,
+                read_message_history=True,
+                reason="Aide Bot — panneau public lecture seule",
+            )
+            await channel.set_permissions(
+                roles["👑・Direction"],
+                view_channel=True,
+                send_messages=True,
+                manage_messages=True,
+                read_message_history=True,
+                reason="Aide Bot — Direction",
+            )
+            await channel.set_permissions(
+                roles["📘・Responsable Formation"],
+                view_channel=True,
+                send_messages=True,
+                manage_messages=True,
+                read_message_history=True,
+                reason="Aide Bot — Responsable Formation",
+            )
 
-    async def _upsert_info(self, channel: discord.TextChannel | None, embed: discord.Embed) -> str:
-        if channel is None or self.bot.user is None:
-            return "absent"
-        result = await upsert_bot_embed_by_title(
-            channel,
-            bot_user_id=self.bot.user.id,
-            embed=embed,
-        )
-        return result.action
-
-    async def _ensure_training_panel(self, channel: discord.TextChannel | None) -> str:
+    async def _upsert_panel(
+        self,
+        channel: discord.TextChannel | None,
+        embed: discord.Embed,
+        view: discord.ui.View | None = None,
+    ) -> str:
         if channel is None or self.bot.user is None:
             return "absent"
         checked, existing = await find_bot_embed_by_title(
             channel,
             bot_user_id=self.bot.user.id,
-            title="Aide Bot — Formations",
+            title=embed.title or "",
+            limit=100,
         )
         if existing is not None:
-            return "reused"
+            try:
+                await existing.edit(embed=embed, view=view)
+                return "updated"
+            except (discord.Forbidden, discord.HTTPException):
+                return "failed"
         if not checked:
             return "skipped"
-        training_cog = self.bot.get_cog("TrainingCog")
-        if training_cog is None:
-            return "absent"
         try:
-            await training_cog.post_panel(channel)
+            await channel.send(embed=embed, view=view, allowed_mentions=discord.AllowedMentions.none())
             return "created"
         except (discord.Forbidden, discord.HTTPException):
             return "failed"
 
-    @app_commands.command(name="setup", description="Configurer Aide Bot sans supprimer les salons/rôles existants")
+    async def _remove_legacy_bot_embeds(self, channel: discord.TextChannel | None, titles: set[str]) -> int:
+        if channel is None or self.bot.user is None:
+            return 0
+        removed = 0
+        try:
+            async for message in channel.history(limit=100):
+                if message.author.id != self.bot.user.id:
+                    continue
+                if not any(embed.title in titles for embed in message.embeds):
+                    continue
+                try:
+                    await message.delete()
+                    removed += 1
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+        except (discord.Forbidden, discord.HTTPException):
+            return removed
+        return removed
+
+    async def _migrate_legacy_channels(self, guild: discord.Guild) -> int:
+        migrated = 0
+        for old_name, new_name in LEGACY_CHANNEL_MIGRATIONS.items():
+            old = discord.utils.get(guild.text_channels, name=old_name)
+            new = discord.utils.get(guild.text_channels, name=new_name)
+            if old is None or new is not None:
+                continue
+            try:
+                await old.edit(name=new_name, reason="Aide Bot V40 — migration du setup")
+                migrated += 1
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+        return migrated
+
+    def _training_embed(self) -> discord.Embed:
+        price = self.bot.settings.vip_price_robux
+        e = discord.Embed(
+            title="Aide Bot — Formations",
+            description=(
+                "Ce salon est **uniquement consacré aux formations**. Il est volontairement différent de `👋・bienvenue` : "
+                "Bienvenue explique où aller, tandis qu’ici tu choisis réellement le parcours que tu veux suivre.\n\n"
+                "Choisis une formation dans le menu sous ce message. Le bot ouvre ensuite un ticket privé avec ton niveau, ton objectif "
+                "et tes disponibilités."
+            ),
+            color=0x5865F2,
+        )
+        e.add_field(
+            name="Formations classiques",
+            value=(
+                "Discord, création de serveur, permissions/sécurité et premier bot. Le système peut demander un crédit d’invitation "
+                "selon la configuration actuelle."
+            ),
+            inline=True,
+        )
+        e.add_field(
+            name="Premium",
+            value=(
+                f"Accompagnement personnalisé actuellement configuré à **{price} Robux**. Le paiement est vérifié manuellement avant "
+                "qu’un Formateur puisse commencer."
+            ),
+            inline=True,
+        )
+        e.set_image(url=BANNER_URL)
+        e.set_footer(text="Aide Bot • Choisis un parcours dans le menu ci-dessous")
+        return e
+
+    def _rules_embed(self) -> discord.Embed:
+        e = discord.Embed(
+            title="Règlement — Aide Bot",
+            description=(
+                "**1. Respect.** Pas d’insultes, harcèlement, spam ou contenu nuisible.\n"
+                "**2. Sécurité.** Ne partage jamais token, mot de passe, cookie, code 2FA ou code de récupération.\n"
+                "**3. Tickets.** Un ticket = un problème. Explique clairement ce que tu veux obtenir et ce que tu as déjà essayé.\n"
+                "**4. Paiements.** Seule la validation enregistrée par la Direction fait foi pour une prestation Premium.\n"
+                "**5. Staff.** Évite de ping plusieurs personnes ; le membre assigné est responsable du suivi.\n"
+                "**6. Aide.** Le but est de comprendre et pouvoir refaire seul, pas simplement copier une solution sans explication."
+            ),
+            color=0x2B2D31,
+        )
+        e.set_image(url=BANNER_URL)
+        return e
+
+    def _recruitment_embed(self) -> discord.Embed:
+        e = discord.Embed(
+            title="Rejoindre l’équipe Aide Bot",
+            description=(
+                "Les Helpers et Formateurs doivent savoir expliquer clairement, rester patients et ne jamais demander de secrets. "
+                "Les permissions sont minimales : rejoindre le staff ne donne pas automatiquement Administrateur.\n\n"
+                "Les candidatures sont gérées par l’équipe du serveur. Si le recrutement est ouvert, utilise le bouton prévu par le panneau staff "
+                "ou contacte la Direction dans les conditions indiquées par le serveur."
+            ),
+            color=0x57F287,
+        )
+        e.set_image(url=BANNER_URL)
+        return e
+
+    def _staff_embed(self) -> discord.Embed:
+        e = discord.Embed(
+            title="Aide Bot — Espace staff",
+            description=(
+                "Le serveur fonctionne maintenant principalement avec des **panneaux et boutons**. Les membres n’ont plus à retenir une longue liste "
+                "de commandes. Dans les tickets, utilise les boutons de prise en charge, progression, paiement et fermeture.\n\n"
+                "Les salons staff restent privés. Les actions sensibles continuent d’être contrôlées par les rôles Aide Bot et par les permissions Discord."
+            ),
+            color=0xF1C40F,
+        )
+        e.set_image(url=BANNER_URL)
+        return e
+
+    @app_commands.command(name="setup", description="Installer ou réparer complètement Aide Bot sur ce serveur")
     async def setup_server(self, interaction: discord.Interaction) -> None:
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
-        if interaction.guild.owner_id != interaction.user.id:
-            return await interaction.response.send_message("Seul le propriétaire du serveur peut lancer le setup initial.", ephemeral=True)
+        is_owner = interaction.guild.owner_id == interaction.user.id
+        is_admin = interaction.user.guild_permissions.administrator
+        if not (is_owner or is_admin):
+            return await interaction.response.send_message(
+                "Le setup est réservé au propriétaire du serveur ou à un administrateur Discord.",
+                ephemeral=True,
+            )
 
         guild = interaction.guild
         me = guild.me
         if me is None:
             return await interaction.response.send_message("Impossible d’identifier le rôle du bot sur ce serveur.", ephemeral=True)
-        missing = []
-        if not me.guild_permissions.manage_roles:
-            missing.append("Gérer les rôles")
-        if not me.guild_permissions.manage_channels:
-            missing.append("Gérer les salons")
+
+        required = {
+            "Gérer les rôles": me.guild_permissions.manage_roles,
+            "Gérer les salons": me.guild_permissions.manage_channels,
+            "Voir les salons": me.guild_permissions.view_channel,
+            "Envoyer des messages": me.guild_permissions.send_messages,
+            "Intégrer des liens": me.guild_permissions.embed_links,
+            "Voir l’historique": me.guild_permissions.read_message_history,
+        }
+        missing = [label for label, allowed in required.items() if not allowed]
         if missing:
             return await interaction.response.send_message(
-                "Le setup est bloqué avant toute modification. Permissions manquantes pour Aide Bot : **" + ", ".join(missing) + "**.",
+                "**Setup bloqué avant toute modification.**\nPermissions manquantes pour Aide Bot : **"
+                + ", ".join(missing)
+                + "**.",
                 ephemeral=True,
             )
 
@@ -99,13 +312,14 @@ class SetupServerCog(commands.Cog):
         )
         if collisions:
             return await interaction.response.send_message(
-                "Le setup est bloqué **avant toute modification** car plusieurs objets utilisent un nom canonique Aide Bot. "
-                "Je refuse de choisir arbitrairement le mauvais rôle/salon. Renomme ou supprime les doublons puis relance `/setup`.\n\n"
+                "**Setup bloqué avant toute modification.** Plusieurs objets utilisent le même nom Aide Bot. "
+                "Je refuse de modifier arbitrairement le mauvais salon ou rôle. Renomme les doublons puis relance `/setup`.\n\n"
                 + format_collisions(collisions),
                 ephemeral=True,
             )
 
         await interaction.response.defer(ephemeral=True, thinking=True)
+        migrated_channels = await self._migrate_legacy_channels(guild)
 
         created_roles = 0
         reused_roles = 0
@@ -113,104 +327,200 @@ class SetupServerCog(commands.Cog):
         for name, color, perm_spec in reversed(ROLE_SPECS):
             role = discord.utils.get(guild.roles, name=name)
             if role is None:
-                role = await guild.create_role(name=name, colour=discord.Colour(color), permissions=role_permissions(perm_spec), reason="Setup Aide Bot")
+                role = await guild.create_role(
+                    name=name,
+                    colour=discord.Colour(color),
+                    permissions=role_permissions(perm_spec),
+                    reason="Setup Aide Bot V40",
+                )
                 created_roles += 1
             else:
                 reused_roles += 1
             roles[name] = role
 
+        created_categories = 0
+        reused_categories = 0
         created_channels = 0
         reused_channels = 0
+        canonical_channels: dict[str, discord.TextChannel] = {}
+
         for category_name, channel_names in CATEGORY_SPECS:
             category = discord.utils.get(guild.categories, name=category_name)
             if category is None:
-                category = await guild.create_category(category_name, reason="Setup Aide Bot")
+                category = await guild.create_category(category_name, reason="Setup Aide Bot V40")
+                created_categories += 1
+            else:
+                reused_categories += 1
             await self._reconcile_category_permissions(guild, category, roles)
 
             for channel_name in channel_names:
                 channel = discord.utils.get(guild.text_channels, name=channel_name)
                 if channel is None:
-                    channel = await guild.create_text_channel(channel_name, category=category, reason="Setup Aide Bot")
+                    channel = await guild.create_text_channel(channel_name, category=category, reason="Setup Aide Bot V40")
                     created_channels += 1
                 else:
                     reused_channels += 1
                     if channel.category_id != category.id:
-                        await channel.edit(category=category, reason="Aide Bot — remettre le salon dans sa catégorie canonique")
+                        await channel.edit(category=category, reason="Aide Bot V40 — catégorie canonique")
+                canonical_channels[channel_name] = channel
                 await self._reconcile_channel_permissions(guild, channel, roles)
 
-        panel_actions: list[str] = []
+        # Nettoyage ciblé du bug précédent : Bienvenue ne doit plus contenir le
+        # centre d'aide ou le panneau des formations.
+        bienvenue = canonical_channels.get("👋・bienvenue")
+        removed_legacy = await self._remove_legacy_bot_embeds(bienvenue, LEGACY_WELCOME_TITLES)
+        formations = canonical_channels.get("🎓・formations")
+        if formations is not None:
+            removed_legacy += await self._remove_legacy_bot_embeds(
+                formations,
+                {"Aide Bot — Centre d’aide & formations", "Aide Bot — Formations"},
+            )
 
-        bienvenue = discord.utils.get(guild.text_channels, name="👋・bienvenue")
-        welcome_embed = discord.Embed(
-            title="Bienvenue sur Aide Bot",
-            description=(
-                "Apprends Discord, crée ton premier serveur ou ton premier bot, demande de l’aide puis aide à ton tour les nouveaux.\n\n"
-                "**Commencer :** `/diagnostic`, `/apprendre reprendre`, `/chercher`, `/formation catalogue`, `/aide demander`."
-            ),
-            color=0x5865F2,
+        panel_actions: list[tuple[str, str]] = []
+        panel_actions.append(("Bienvenue", await self._upsert_panel(bienvenue, welcome_embed(), WelcomeView(self.bot))))
+        panel_actions.append(
+            (
+                "Règlement",
+                await self._upsert_panel(canonical_channels.get("📜・règlement"), self._rules_embed()),
+            )
         )
-        panel_actions.append(await self._upsert_info(bienvenue, welcome_embed))
 
-        formations = discord.utils.get(guild.text_channels, name="🎓・formations")
-        panel_actions.append(await self._ensure_training_panel(formations))
+        center_cog = self.bot.get_cog("CenterCog")
+        if center_cog is not None:
+            panel_actions.append(
+                (
+                    "Centre d’aide",
+                    await self._upsert_panel(
+                        canonical_channels.get("🎓・centre-aide"),
+                        center_embed(self.bot.settings.vip_price_robux),
+                        CenterView(center_cog),
+                    ),
+                )
+            )
+        else:
+            panel_actions.append(("Centre d’aide", "absent"))
 
-        ressources = discord.utils.get(guild.text_channels, name="📚・ressources")
-        titles = "\n".join(f"• **{data['title']}** — `{key}`" for key, data in FORMATIONS.items())
-        resources_embed = discord.Embed(
-            title="Centre d’apprentissage",
-            description=(
-                "Utilise `/diagnostic` pour être orienté, `/chercher` pour trouver une réponse, `/ressource` pour une checklist "
-                f"et `/favoris ajouter` pour sauvegarder ce qui t’aide.\n\n{titles}"
-            ),
-            color=0x3498DB,
+        training_cog = self.bot.get_cog("TrainingCog")
+        if training_cog is not None:
+            panel_actions.append(
+                (
+                    "Formations",
+                    await self._upsert_panel(
+                        formations,
+                        self._training_embed(),
+                        TrainingPanel(training_cog),
+                    ),
+                )
+            )
+        else:
+            panel_actions.append(("Formations", "absent"))
+
+        panel_actions.append(
+            (
+                "Vidéos",
+                await self._upsert_panel(
+                    canonical_channels.get("🎥・videos-guides"),
+                    videos_panel_embed(),
+                    VideosPanelView(),
+                ),
+            )
         )
-        panel_actions.append(await self._upsert_info(ressources, resources_embed))
-
-        presets = discord.utils.get(guild.text_channels, name="🧩・presets")
-        rewards = "\n".join(f"• **{threshold} invitation(s)** → {label}" for threshold, label in INVITE_REWARDS)
-        challenge_names = "\n".join(f"• `{key}` — {data['title']}" for key, data in CHALLENGES.items())
-        presets_embed = discord.Embed(
-            title="Presets, challenges et récompenses",
-            description=f"**Paliers d’invitations**\n{rewards}\n\n**Challenges pratiques**\n{challenge_names}",
-            color=0xF1C40F,
+        panel_actions.append(
+            (
+                "Boutique",
+                await self._upsert_panel(
+                    canonical_channels.get("🛒・shop"),
+                    shop_embed(self.bot.settings.vip_price_robux),
+                    ShopView(self.bot),
+                ),
+            )
         )
-        panel_actions.append(await self._upsert_info(presets, presets_embed))
-
-        recrutement = discord.utils.get(guild.text_channels, name="🧑‍🏫・recrutement")
-        recruitment_embed = discord.Embed(
-            title="Devenir Helper / Formateur",
-            description="Utilise `/candidature` pour envoyer ton expérience, tes spécialités et tes disponibilités. Les permissions restent minimales et explicites.",
-            color=0x57F287,
+        panel_actions.append(
+            (
+                "Tickets",
+                await self._upsert_panel(
+                    canonical_channels.get("🎫・ouvrir-ticket"),
+                    ticket_embed(),
+                    TicketEntryView(self.bot),
+                ),
+            )
         )
-        panel_actions.append(await self._upsert_info(recrutement, recruitment_embed))
-
-        ops = self.bot.get_cog("OpsDashboardCog")
-        if ops is not None:
-            try:
-                ops_ok, hub_ok = await ops.refresh_guild(guild)
-                panel_actions.extend(["updated" if ops_ok else "failed", "reused" if hub_ok else "failed"])
-            except (discord.Forbidden, discord.HTTPException):
-                panel_actions.extend(["failed", "failed"])
+        panel_actions.append(
+            (
+                "Recrutement",
+                await self._upsert_panel(canonical_channels.get("🧑‍🏫・recrutement"), self._recruitment_embed()),
+            )
+        )
+        panel_actions.append(
+            (
+                "Staff",
+                await self._upsert_panel(canonical_channels.get("📋・staff"), self._staff_embed()),
+            )
+        )
 
         top_roles = [role for role in roles.values() if role.name != "👤・Membre"]
         hierarchy_warning = any(role >= me.top_role for role in top_roles)
-        suffix = "\n⚠️ Le rôle du bot doit être placé au-dessus de tous les rôles qu’il doit attribuer ou gérer." if hierarchy_warning else ""
-        failures = sum(1 for action in panel_actions if action in {"failed", "skipped", "absent"})
-        panel_note = (
-            f"\nPanneaux : **{len(panel_actions) - failures} OK**, **{failures} à vérifier**."
-            if panel_actions
-            else ""
-        )
-        await interaction.followup.send(
-            (
-                f"Setup terminé. Rôles : **{created_roles} créés / {reused_roles} réutilisés**. "
-                f"Salons : **{created_channels} créés / {reused_channels} réutilisés**. "
-                "Aucun salon/rôle existant n’a été supprimé. Les permissions sensibles ont été réconciliées en fail-closed."
-                + panel_note
-                + suffix
+        failures = [(name, action) for name, action in panel_actions if action in {"failed", "skipped", "absent"}]
+
+        result = discord.Embed(
+            title="Setup Aide Bot terminé",
+            description=(
+                "Le serveur a été réconcilié avec la structure **panel-first** : Bienvenue, centre d’aide, formations, vidéos, "
+                "boutique et tickets sont maintenant des espaces distincts. Aucun salon utilisateur non canonique n’a été supprimé."
             ),
-            ephemeral=True,
+            color=0x57F287 if not failures and not hierarchy_warning else 0xF1C40F,
         )
+        result.add_field(
+            name="Structure",
+            value=(
+                f"Rôles : **{created_roles} créés / {reused_roles} réutilisés**\n"
+                f"Catégories : **{created_categories} créées / {reused_categories} réutilisées**\n"
+                f"Salons : **{created_channels} créés / {reused_channels} réutilisés**\n"
+                f"Migrations d’anciens salons : **{migrated_channels}**"
+            ),
+            inline=True,
+        )
+        panel_ok = len(panel_actions) - len(failures)
+        result.add_field(
+            name="Panneaux",
+            value=f"**{panel_ok}/{len(panel_actions)} OK**\nAnciens panneaux nettoyés : **{removed_legacy}**",
+            inline=True,
+        )
+        result.add_field(
+            name="Commandes membres",
+            value="Le bot est conçu pour fonctionner avec **`/setup`** et **`/buy`** seulement ; le reste passe par les boutons et menus.",
+            inline=False,
+        )
+        if failures:
+            result.add_field(
+                name="À vérifier",
+                value="\n".join(f"• {name}: `{action}`" for name, action in failures[:8]),
+                inline=False,
+            )
+        if hierarchy_warning:
+            result.add_field(
+                name="Hiérarchie des rôles",
+                value="Place le rôle d’Aide Bot au-dessus des rôles qu’il doit gérer ou attribuer.",
+                inline=False,
+            )
+        result.set_image(url=BANNER_URL)
+        result.set_footer(text="Aide Bot V40 • Relancer /setup est sans danger : il répare et met à jour l’existant")
+
+        logs = canonical_channels.get("🧾・logs")
+        if logs is not None:
+            try:
+                await logs.send(
+                    embed=discord.Embed(
+                        title="Setup exécuté",
+                        description=f"Par {interaction.user.mention} • {panel_ok}/{len(panel_actions)} panneaux OK • {removed_legacy} ancien(s) panneau(x) nettoyé(s)",
+                        color=0x2B2D31,
+                    ),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+        await interaction.followup.send(embed=result, ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

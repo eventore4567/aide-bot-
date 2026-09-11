@@ -13,12 +13,16 @@ from aidebot.integrity_db import IntegrityDatabase
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("aidebot")
 
+# Les anciens cogs restent chargés pour leurs vues persistantes, workers,
+# transactions, logs et logique interne. Les commandes slash héritées sont
+# retirées juste avant la synchronisation : l'UX membre reste panel-first.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.member_experience",
     "aidebot.cogs.command_cleanup",
     "aidebot.cogs.center",
     "aidebot.cogs.center_autopost",
+    "aidebot.cogs.storefront",
     "aidebot.cogs.ticket_experience",
     "aidebot.cogs.ticket_recovery",
     "aidebot.cogs.community",
@@ -33,6 +37,8 @@ EXTENSIONS = (
     "aidebot.cogs.setup_server",
     "aidebot.cogs.ops_dashboard",
 )
+
+PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
 
 
 class AideBot(commands.Bot):
@@ -53,6 +59,12 @@ class AideBot(commands.Bot):
         await self.db.connect()
         for extension in EXTENSIONS:
             await self.load_extension(extension)
+
+        # Aide Bot V40 n'expose que les deux entrées voulues : /setup et /buy.
+        # Toute la logique avancée reste disponible via boutons, menus et vues.
+        for command in list(self.tree.get_commands()):
+            if command.name not in PUBLIC_SLASH_COMMANDS:
+                self.tree.remove_command(command.name, type=command.type)
 
         if self.settings.guild_id:
             guild = discord.Object(id=self.settings.guild_id)
@@ -80,7 +92,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Apprendre • /centre"))
+            await bot.change_presence(activity=discord.Game(name="Panneaux • /setup • /buy"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
