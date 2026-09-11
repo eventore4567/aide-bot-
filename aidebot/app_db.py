@@ -151,6 +151,12 @@ class AideBotDatabase(Database):
             raise
 
     async def complete_request_once(self, request_id: int) -> aiosqlite.Row | None:
+        """Complete a request and credit its assigned helper/trainer atomically.
+
+        Request state, staff statistics/reputation and pending reminder
+        cancellation are committed in one SQLite transaction. A crash can no
+        longer leave a completed request without its staff reward.
+        """
         db = self._db()
         await db.execute("BEGIN IMMEDIATE")
         try:
@@ -159,8 +165,34 @@ class AideBotDatabase(Database):
             if not row or not row["trainer_id"] or row["status"] not in {"open", "assigned", "in_progress"}:
                 await db.rollback()
                 return None
+
+            trainer_id = int(row["trainer_id"])
+            guild_id = int(row["guild_id"])
+            await db.execute(
+                "INSERT OR IGNORE INTO profiles(guild_id,user_id) VALUES (?,?)",
+                (guild_id, trainer_id),
+            )
+            if row["training_key"] == "community_help":
+                await db.execute(
+                    """UPDATE profiles
+                       SET reputation=reputation+25, helped_count=helped_count+1
+                       WHERE guild_id=? AND user_id=?""",
+                    (guild_id, trainer_id),
+                )
+            else:
+                await db.execute(
+                    """UPDATE profiles
+                       SET reputation=reputation+50, trainings_completed=trainings_completed+1
+                       WHERE guild_id=? AND user_id=?""",
+                    (guild_id, trainer_id),
+                )
+
             await db.execute(
                 "UPDATE requests SET status='completed', progress=total_steps WHERE id=?",
+                (request_id,),
+            )
+            await db.execute(
+                "UPDATE reminders SET state='cancelled' WHERE request_id=? AND state='pending'",
                 (request_id,),
             )
             await db.commit()
@@ -168,6 +200,14 @@ class AideBotDatabase(Database):
         except Exception:
             await db.rollback()
             raise
+
+    async def complete_for_trainer(self, guild_id: int, trainer_id: int, community_help: bool) -> None:
+        """Compatibility shim: rewards are now part of complete_request_once().
+
+        TrainingCog still calls this method after completion. Keeping a no-op
+        override avoids a double reward while older call sites remain safe.
+        """
+        return None
 
     async def close_request_once(self, request_id: int) -> bool:
         cur = await self._db().execute(
