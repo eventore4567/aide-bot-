@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from aidebot.transaction_guard import guarded_connection
+
 
 @dataclass(frozen=True)
 class ChallengeResolution:
@@ -34,46 +36,48 @@ async def resolve_challenge_atomic(
     """Resolve one pending challenge and grant reputation in one DB transaction.
 
     This closes the crash window where a submission could be marked accepted
-    but the reputation reward was never written, and prevents a second
-    reviewer from granting the reward twice.
+    but the reputation reward was never written, prevents a second reviewer
+    from granting the reward twice, and serializes explicit transactions on
+    the shared production SQLite connection.
     """
-    await conn.execute("BEGIN IMMEDIATE")
-    try:
-        cur = await conn.execute(
-            """SELECT user_id,status
-               FROM challenge_submissions
-               WHERE id=? AND guild_id=?""",
-            (submission_id, guild_id),
-        )
-        row = await cur.fetchone()
-        if row is None or row["status"] != "pending":
-            await conn.rollback()
-            return ChallengeResolution(False)
-
-        new_status = "accepted" if accepted else "rejected"
-        cur = await conn.execute(
-            """UPDATE challenge_submissions
-               SET status=?, reviewer_id=?
-               WHERE id=? AND guild_id=? AND status='pending'""",
-            (new_status, reviewer_id, submission_id, guild_id),
-        )
-        if cur.rowcount != 1:
-            await conn.rollback()
-            return ChallengeResolution(False)
-
-        user_id = int(row["user_id"])
-        if accepted and reward > 0:
-            await conn.execute(
-                "INSERT OR IGNORE INTO profiles(guild_id,user_id) VALUES (?,?)",
-                (guild_id, user_id),
+    async with guarded_connection(conn):
+        await conn.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await conn.execute(
+                """SELECT user_id,status
+                   FROM challenge_submissions
+                   WHERE id=? AND guild_id=?""",
+                (submission_id, guild_id),
             )
-            await conn.execute(
-                "UPDATE profiles SET reputation=reputation+? WHERE guild_id=? AND user_id=?",
-                (int(reward), guild_id, user_id),
-            )
+            row = await cur.fetchone()
+            if row is None or row["status"] != "pending":
+                await conn.rollback()
+                return ChallengeResolution(False)
 
-        await conn.commit()
-        return ChallengeResolution(True, user_id=user_id, status=new_status)
-    except Exception:
-        await conn.rollback()
-        raise
+            new_status = "accepted" if accepted else "rejected"
+            cur = await conn.execute(
+                """UPDATE challenge_submissions
+                   SET status=?, reviewer_id=?
+                   WHERE id=? AND guild_id=? AND status='pending'""",
+                (new_status, reviewer_id, submission_id, guild_id),
+            )
+            if cur.rowcount != 1:
+                await conn.rollback()
+                return ChallengeResolution(False)
+
+            user_id = int(row["user_id"])
+            if accepted and reward > 0:
+                await conn.execute(
+                    "INSERT OR IGNORE INTO profiles(guild_id,user_id) VALUES (?,?)",
+                    (guild_id, user_id),
+                )
+                await conn.execute(
+                    "UPDATE profiles SET reputation=reputation+? WHERE guild_id=? AND user_id=?",
+                    (int(reward), guild_id, user_id),
+                )
+
+            await conn.commit()
+            return ChallengeResolution(True, user_id=user_id, status=new_status)
+        except Exception:
+            await conn.rollback()
+            raise
