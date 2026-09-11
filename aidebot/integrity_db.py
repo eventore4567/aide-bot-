@@ -20,6 +20,15 @@ class IntegrityDatabase(BaseAideBotDatabase):
     async def connect(self) -> None:
         await super().connect()
         register_connection_lock(self._db(), self.transaction_lock)
+        # `processing` is a transient claim used while Discord grants a role.
+        # If the process died after the claim, returning it to pending is safe:
+        # adding an already-present Discord role is idempotent on the next try.
+        await self._db().execute(
+            """UPDATE applications
+               SET status='pending', reviewer_id=NULL, review_reason=''
+               WHERE status='processing'"""
+        )
+        await self._db().commit()
 
     async def close(self) -> None:
         if self.conn is not None:
@@ -135,6 +144,63 @@ class IntegrityDatabase(BaseAideBotDatabase):
             except Exception:
                 await db.rollback()
                 raise
+
+    async def begin_application_acceptance(
+        self,
+        application_id: int,
+        guild_id: int,
+        reviewer_id: int,
+        reason: str = "",
+    ):
+        """Exclusively claim a pending application before granting its role."""
+        async with self.transaction_lock:
+            db = self._db()
+            await db.execute("BEGIN IMMEDIATE")
+            try:
+                cur = await db.execute(
+                    "SELECT * FROM applications WHERE id=? AND guild_id=?",
+                    (application_id, guild_id),
+                )
+                row = await cur.fetchone()
+                if row is None or row["status"] != "pending":
+                    await db.rollback()
+                    return None
+                changed = await db.execute(
+                    """UPDATE applications
+                       SET status='processing', reviewer_id=?, review_reason=?
+                       WHERE id=? AND guild_id=? AND status='pending'""",
+                    (reviewer_id, reason[:500], application_id, guild_id),
+                )
+                if changed.rowcount != 1:
+                    await db.rollback()
+                    return None
+                await db.commit()
+                return row
+            except Exception:
+                await db.rollback()
+                raise
+
+    async def finish_application_acceptance(self, application_id: int, guild_id: int) -> bool:
+        async with self.transaction_lock:
+            cur = await self._db().execute(
+                """UPDATE applications SET status='accepted'
+                   WHERE id=? AND guild_id=? AND status='processing'""",
+                (application_id, guild_id),
+            )
+            await self._db().commit()
+            return cur.rowcount == 1
+
+    async def release_application_acceptance(self, application_id: int, guild_id: int) -> bool:
+        """Return a failed Discord role grant to a reviewable pending state."""
+        async with self.transaction_lock:
+            cur = await self._db().execute(
+                """UPDATE applications
+                   SET status='pending', reviewer_id=NULL, review_reason=''
+                   WHERE id=? AND guild_id=? AND status='processing'""",
+                (application_id, guild_id),
+            )
+            await self._db().commit()
+            return cur.rowcount == 1
 
     async def add_review(
         self,
