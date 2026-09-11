@@ -8,6 +8,7 @@ from aidebot.message_reconcile import find_bot_embed_by_title
 
 
 CENTER_TITLE = "Aide Bot — Centre d’aide & formations"
+CENTER_CHANNEL = "🎓・centre-aide"
 
 
 class CenterAutoPostCog(commands.Cog):
@@ -56,22 +57,15 @@ class CenterAutoPostCog(commands.Cog):
             if guild.id in self._checked_guilds:
                 continue
             self._checked_guilds.add(guild.id)
-            channel = discord.utils.get(guild.text_channels, name="🎓・formations")
-            if channel is None:
-                channel = discord.utils.get(guild.text_channels, name="👋・bienvenue")
+            channel = discord.utils.get(guild.text_channels, name=CENTER_CHANNEL)
             if channel is not None:
                 await self._publish_or_update(channel)
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel) -> None:
-        """Publish the rich center immediately when /setup creates its channel.
-
-        Without this listener, a server configured after the bot was already
-        online had to wait for the next restart before seeing the V34 panel.
-        """
-        if not isinstance(channel, discord.TextChannel):
-            return
-        if channel.name not in {"🎓・formations", "👋・bienvenue"}:
+        # Important : le centre riche ne doit JAMAIS être publié dans Bienvenue.
+        # /setup crée un salon dédié et publie un panneau d'accueil différent.
+        if not isinstance(channel, discord.TextChannel) or channel.name != CENTER_CHANNEL:
             return
         await self._publish_or_update(channel)
 
