@@ -15,6 +15,8 @@ log = logging.getLogger("aidebot")
 
 EXTENSIONS = (
     "aidebot.cogs.training",
+    "aidebot.cogs.member_experience",
+    "aidebot.cogs.command_cleanup",
     "aidebot.cogs.center",
     "aidebot.cogs.center_autopost",
     "aidebot.cogs.ticket_experience",
@@ -24,7 +26,6 @@ EXTENSIONS = (
     "aidebot.cogs.invites",
     "aidebot.cogs.learning",
     "aidebot.cogs.self_learning",
-    "aidebot.cogs.member_experience",
     "aidebot.cogs.payments",
     "aidebot.cogs.reminders",
     "aidebot.cogs.health",
