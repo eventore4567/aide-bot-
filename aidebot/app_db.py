@@ -6,6 +6,7 @@ from typing import Any
 import aiosqlite
 
 from aidebot.db import Database
+from aidebot.payments import PAYMENT_STATES, can_transition_payment, request_status_after_payment
 
 
 ACTIVE_REQUEST_STATUSES = ("open", "assigned", "in_progress", "payment_pending")
@@ -235,3 +236,43 @@ class AideBotDatabase(Database):
             (guild_id, user_id),
         )
         return list(await cur.fetchall())
+
+    async def transition_payment(self, request_id: int, target: str) -> tuple[bool, str | None]:
+        """Atomically apply a valid payment transition.
+
+        Returns ``(changed_or_already_target, previous_state)``. Free requests
+        (`not_required`) and invalid transitions are rejected without mutation.
+        """
+        if target not in PAYMENT_STATES:
+            return False, None
+
+        db = self._db()
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await db.execute(
+                "SELECT payment_status,status FROM requests WHERE id=?",
+                (request_id,),
+            )
+            row = await cur.fetchone()
+            if row is None:
+                await db.rollback()
+                return False, None
+
+            current = str(row["payment_status"])
+            if current == "not_required" or not can_transition_payment(current, target):
+                await db.rollback()
+                return False, current
+            if current == target:
+                await db.rollback()
+                return True, current
+
+            next_request_status = request_status_after_payment(str(row["status"]), target)
+            await db.execute(
+                "UPDATE requests SET payment_status=?, status=? WHERE id=? AND payment_status=?",
+                (target, next_request_status, request_id, current),
+            )
+            await db.commit()
+            return True, current
+        except Exception:
+            await db.rollback()
+            raise
