@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from aidebot.blueprint import CATEGORY_SPECS, ROLE_SPECS, role_permissions
 from aidebot.cogs.center import CenterView, center_embed
+from aidebot.cogs.recruitment_panel import RecruitmentView, recruitment_embed
 from aidebot.cogs.training import TrainingPanel
 from aidebot.experience_content import BANNER_URL
 from aidebot.message_reconcile import find_bot_embed_by_title
@@ -190,7 +191,7 @@ class SetupServerCog(commands.Cog):
             if old is None or new is not None:
                 continue
             try:
-                await old.edit(name=new_name, reason="Aide Bot V40 — migration du setup")
+                await old.edit(name=new_name, reason="Aide Bot V41 — migration du setup")
                 migrated += 1
             except (discord.Forbidden, discord.HTTPException):
                 pass
@@ -201,31 +202,30 @@ class SetupServerCog(commands.Cog):
         e = discord.Embed(
             title="Aide Bot — Formations",
             description=(
-                "Ce salon est **uniquement consacré aux formations**. Il est volontairement différent de `👋・bienvenue` : "
-                "Bienvenue explique où aller, tandis qu’ici tu choisis réellement le parcours que tu veux suivre.\n\n"
-                "Choisis une formation dans le menu sous ce message. Le bot ouvre ensuite un ticket privé avec ton niveau, ton objectif "
-                "et tes disponibilités."
+                "Ce salon est **uniquement consacré aux formations**. Choisis réellement le parcours que tu veux suivre dans le menu ci-dessous.\n\n"
+                "Chaque choix ouvre désormais **un formulaire différent et adapté au sujet** : créer un serveur ne pose pas les mêmes questions que "
+                "les permissions, la sécurité ou le développement d’un bot."
             ),
             color=0x5865F2,
         )
         e.add_field(
             name="Formations classiques",
             value=(
-                "Discord, création de serveur, permissions/sécurité et premier bot. Le système peut demander un crédit d’invitation "
-                "selon la configuration actuelle."
+                "Discord, création de serveur, permissions/sécurité et premier bot. Le formulaire demande le contexte utile à ce sujet, puis un ticket "
+                "clair est créé avec la prochaine étape."
             ),
             inline=True,
         )
         e.add_field(
-            name="Premium",
+            name="Parcours Premium",
             value=(
-                f"Accompagnement personnalisé actuellement configuré à **{price} Robux**. Le paiement est vérifié manuellement avant "
-                "qu’un Formateur puisse commencer."
+                f"L’abonnement est configuré à **{price} Robux** et s’achète uniquement dans `🛒・shop` ou avec `/buy`. "
+                "Sans rôle **💎・VIP**, un choix Premium affiche **Abonnement Premium manquant** au lieu d’ouvrir un formulaire."
             ),
             inline=True,
         )
         e.set_image(url=BANNER_URL)
-        e.set_footer(text="Aide Bot • Choisis un parcours dans le menu ci-dessous")
+        e.set_footer(text="Aide Bot • Choisis un parcours • Formulaire adapté au choix sélectionné")
         return e
 
     def _rules_embed(self) -> discord.Embed:
@@ -235,7 +235,7 @@ class SetupServerCog(commands.Cog):
                 "**1. Respect.** Pas d’insultes, harcèlement, spam ou contenu nuisible.\n"
                 "**2. Sécurité.** Ne partage jamais token, mot de passe, cookie, code 2FA ou code de récupération.\n"
                 "**3. Tickets.** Un ticket = un problème. Explique clairement ce que tu veux obtenir et ce que tu as déjà essayé.\n"
-                "**4. Paiements.** Seule la validation enregistrée par la Direction fait foi pour une prestation Premium.\n"
+                "**4. Paiements.** L’achat Premium passe par la boutique et seule la validation enregistrée par la Direction fait foi.\n"
                 "**5. Staff.** Évite de ping plusieurs personnes ; le membre assigné est responsable du suivi.\n"
                 "**6. Aide.** Le but est de comprendre et pouvoir refaire seul, pas simplement copier une solution sans explication."
             ),
@@ -244,27 +244,13 @@ class SetupServerCog(commands.Cog):
         e.set_image(url=BANNER_URL)
         return e
 
-    def _recruitment_embed(self) -> discord.Embed:
-        e = discord.Embed(
-            title="Rejoindre l’équipe Aide Bot",
-            description=(
-                "Les Helpers et Formateurs doivent savoir expliquer clairement, rester patients et ne jamais demander de secrets. "
-                "Les permissions sont minimales : rejoindre le staff ne donne pas automatiquement Administrateur.\n\n"
-                "Les candidatures sont gérées par l’équipe du serveur. Si le recrutement est ouvert, utilise le bouton prévu par le panneau staff "
-                "ou contacte la Direction dans les conditions indiquées par le serveur."
-            ),
-            color=0x57F287,
-        )
-        e.set_image(url=BANNER_URL)
-        return e
-
     def _staff_embed(self) -> discord.Embed:
         e = discord.Embed(
             title="Aide Bot — Espace staff",
             description=(
-                "Le serveur fonctionne maintenant principalement avec des **panneaux et boutons**. Les membres n’ont plus à retenir une longue liste "
-                "de commandes. Dans les tickets, utilise les boutons de prise en charge, progression, paiement et fermeture.\n\n"
-                "Les salons staff restent privés. Les actions sensibles continuent d’être contrôlées par les rôles Aide Bot et par les permissions Discord."
+                "Le serveur fonctionne principalement avec des **panneaux et boutons**. Dans les tickets, utilise les boutons de prise en charge, "
+                "progression, paiement et fermeture. Les candidatures arrivent ici avec des boutons **Accepter / Refuser**.\n\n"
+                "Les salons staff restent privés et les actions sensibles continuent d’être contrôlées par les rôles Aide Bot et les permissions Discord."
             ),
             color=0xF1C40F,
         )
@@ -331,7 +317,7 @@ class SetupServerCog(commands.Cog):
                     name=name,
                     colour=discord.Colour(color),
                     permissions=role_permissions(perm_spec),
-                    reason="Setup Aide Bot V40",
+                    reason="Setup Aide Bot V41",
                 )
                 created_roles += 1
             else:
@@ -347,7 +333,7 @@ class SetupServerCog(commands.Cog):
         for category_name, channel_names in CATEGORY_SPECS:
             category = discord.utils.get(guild.categories, name=category_name)
             if category is None:
-                category = await guild.create_category(category_name, reason="Setup Aide Bot V40")
+                category = await guild.create_category(category_name, reason="Setup Aide Bot V41")
                 created_categories += 1
             else:
                 reused_categories += 1
@@ -356,17 +342,15 @@ class SetupServerCog(commands.Cog):
             for channel_name in channel_names:
                 channel = discord.utils.get(guild.text_channels, name=channel_name)
                 if channel is None:
-                    channel = await guild.create_text_channel(channel_name, category=category, reason="Setup Aide Bot V40")
+                    channel = await guild.create_text_channel(channel_name, category=category, reason="Setup Aide Bot V41")
                     created_channels += 1
                 else:
                     reused_channels += 1
                     if channel.category_id != category.id:
-                        await channel.edit(category=category, reason="Aide Bot V40 — catégorie canonique")
+                        await channel.edit(category=category, reason="Aide Bot V41 — catégorie canonique")
                 canonical_channels[channel_name] = channel
                 await self._reconcile_channel_permissions(guild, channel, roles)
 
-        # Nettoyage ciblé du bug précédent : Bienvenue ne doit plus contenir le
-        # centre d'aide ou le panneau des formations.
         bienvenue = canonical_channels.get("👋・bienvenue")
         removed_legacy = await self._remove_legacy_bot_embeds(bienvenue, LEGACY_WELCOME_TITLES)
         formations = canonical_channels.get("🎓・formations")
@@ -448,7 +432,11 @@ class SetupServerCog(commands.Cog):
         panel_actions.append(
             (
                 "Recrutement",
-                await self._upsert_panel(canonical_channels.get("🧑‍🏫・recrutement"), self._recruitment_embed()),
+                await self._upsert_panel(
+                    canonical_channels.get("🧑‍🏫・recrutement"),
+                    recruitment_embed(),
+                    RecruitmentView(self.bot),
+                ),
             )
         )
         panel_actions.append(
@@ -465,8 +453,8 @@ class SetupServerCog(commands.Cog):
         result = discord.Embed(
             title="Setup Aide Bot terminé",
             description=(
-                "Le serveur a été réconcilié avec la structure **panel-first** : Bienvenue, centre d’aide, formations, vidéos, "
-                "boutique et tickets sont maintenant des espaces distincts. Aucun salon utilisateur non canonique n’a été supprimé."
+                "Le serveur a été réconcilié avec la structure **panel-first** : accueil, centre d’aide, formations détaillées, vidéos, "
+                "boutique Premium, tickets clairs et recrutement par formulaire sont des espaces distincts."
             ),
             color=0x57F287 if not failures and not hierarchy_warning else 0xF1C40F,
         )
@@ -487,8 +475,13 @@ class SetupServerCog(commands.Cog):
             inline=True,
         )
         result.add_field(
+            name="Premium",
+            value="Achat via **`/buy` / `🛒・shop`** → ticket paiement → validation staff → rôle **💎・VIP** → accès aux boutons/parcours Premium.",
+            inline=False,
+        )
+        result.add_field(
             name="Commandes membres",
-            value="Le bot est conçu pour fonctionner avec **`/setup`** et **`/buy`** seulement ; le reste passe par les boutons et menus.",
+            value="Le bot reste limité à **`/setup`** et **`/buy`** ; le reste passe par les boutons, menus et formulaires.",
             inline=False,
         )
         if failures:
@@ -500,11 +493,11 @@ class SetupServerCog(commands.Cog):
         if hierarchy_warning:
             result.add_field(
                 name="Hiérarchie des rôles",
-                value="Place le rôle d’Aide Bot au-dessus des rôles qu’il doit gérer ou attribuer.",
+                value="Place le rôle d’Aide Bot au-dessus des rôles qu’il doit gérer ou attribuer, notamment **💎・VIP**.",
                 inline=False,
             )
         result.set_image(url=BANNER_URL)
-        result.set_footer(text="Aide Bot V40 • Relancer /setup est sans danger : il répare et met à jour l’existant")
+        result.set_footer(text="Aide Bot V41 • Relancer /setup met à jour les panneaux sans supprimer les salons utilisateurs")
 
         logs = canonical_channels.get("🧾・logs")
         if logs is not None:
