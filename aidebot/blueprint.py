@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import discord
 
+# Permissions Discord natives volontairement minimales.
+# Les actions Aide Bot sensibles passent par aidebot.permissions (fail-closed),
+# au lieu de donner Administrateur / Gérer le serveur par facilité.
 ROLE_SPECS = [
-    ("👑・Direction", 0xF1C40F, dict(manage_guild=True, manage_channels=True, manage_roles=True, manage_messages=True, moderate_members=True, kick_members=True, ban_members=True)),
-    ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True, moderate_members=True)),
+    ("👑・Direction", 0xF1C40F, dict(manage_channels=True, manage_roles=True, manage_messages=True)),
+    ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True)),
     ("🎓・Formateur", 0x5865F2, dict()),
     ("🤝・Helper", 0x57F287, dict()),
     ("🌟・Ambassadeur", 0xFEE75C, dict()),
