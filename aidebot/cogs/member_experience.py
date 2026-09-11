@@ -23,27 +23,32 @@ def _catalogue_text(price_robux: int) -> str:
 
 async def _profile_embed(bot: commands.Bot, guild: discord.Guild, member: discord.Member) -> discord.Embed:
     row = await bot.db.profile(guild.id, member.id)
+    student_completed = await bot.db.student_training_count(guild.id, member.id)
+    trainer_completed = int(row["trainings_completed"])
     average = row["rating_sum"] / row["reviews_count"] if row["reviews_count"] else 0
     badges = profile_badges(
         reputation=row["reputation"],
         helped=row["helped_count"],
-        trainings=row["trainings_completed"],
+        trainings=trainer_completed,
         reviews=row["reviews_count"],
         average=average,
     )
+    if student_completed > 0:
+        badges = ["✅ Apprenant certifié", *badges]
     title, advice = recommend_next_action(
         credits=await bot.db.invite_credits(guild.id, member.id),
         reputation=row["reputation"],
         helped=row["helped_count"],
-        trainings=row["trainings_completed"],
+        trainings=student_completed,
         helper_available=bool(row["helper_available"]),
     )
     description = (
         f"**Niveau :** {community_level(row['reputation'])}\n"
         f"**Réputation :** {row['reputation']}\n"
         f"**Aides terminées :** {row['helped_count']}\n"
-        f"**Formations terminées :** {row['trainings_completed']}\n"
-        f"**Note :** {average:.1f}/5 ({row['reviews_count']} avis)\n"
+        f"**Formations suivies :** {student_completed}\n"
+        f"**Formations données :** {trainer_completed}\n"
+        f"**Note comme aidant/formateur :** {average:.1f}/5 ({row['reviews_count']} avis)\n"
         f"**Compétences :** {row['skills'] or 'Aucune renseignée'}\n"
         f"**Badges :** {' • '.join(badges)}\n\n"
         f"**Prochaine étape — {title}**\n{advice}"
@@ -202,12 +207,34 @@ class MemberExperienceCog(commands.Cog):
             ephemeral=True,
         )
 
+    @app_commands.command(name="mes_demandes", description="Voir tes demandes encore actives")
+    async def mes_demandes(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild:
+            return
+        rows = await self.bot.db.active_requests_for_user(interaction.guild.id, interaction.user.id)
+        if not rows:
+            return await interaction.response.send_message("Tu n’as aucune demande active.", ephemeral=True)
+        lines = []
+        for row in rows:
+            data = FORMATIONS.get(row["training_key"])
+            title = data["title"] if data else "Aide communautaire"
+            channel = interaction.guild.get_channel(row["channel_id"]) if row["channel_id"] else None
+            location = channel.mention if isinstance(channel, discord.TextChannel) else "ticket indisponible"
+            lines.append(
+                f"**#{row['id']} — {title}**\n"
+                f"Statut : `{row['status']}` • progression {row['progress']}/{row['total_steps']} • {location}"
+            )
+        await interaction.response.send_message(
+            embed=discord.Embed(title="Mes demandes", description="\n\n".join(lines), color=0x5865F2),
+            ephemeral=True,
+        )
+
     @app_commands.command(name="certificat", description="Afficher ton certificat Aide Bot si tu as terminé une formation")
     async def certificat(self, interaction: discord.Interaction) -> None:
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
         row = await self.bot.db.profile(interaction.guild.id, interaction.user.id)
-        completed = int(row["trainings_completed"])
+        completed = await self.bot.db.student_training_count(interaction.guild.id, interaction.user.id)
         if completed <= 0:
             return await interaction.response.send_message(
                 "Tu dois terminer au moins une formation avant d’obtenir ton certificat Aide Bot.",
