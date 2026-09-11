@@ -176,20 +176,25 @@ class CommunityCog(commands.Cog):
             return
         target = membre or interaction.user
         row = await self.bot.db.profile(interaction.guild.id, target.id)
+        student_completed = await self.bot.db.student_training_count(interaction.guild.id, target.id)
+        trainer_completed = int(row["trainings_completed"])
         average = (row["rating_sum"] / row["reviews_count"]) if row["reviews_count"] else 0
         badges = profile_badges(
             reputation=row["reputation"],
             helped=row["helped_count"],
-            trainings=row["trainings_completed"],
+            trainings=trainer_completed,
             reviews=row["reviews_count"],
             average=average,
         )
+        if student_completed > 0:
+            badges = ["✅ Apprenant certifié", *badges]
         desc = (
             f"**Niveau communauté :** {community_level(row['reputation'])}\n"
             f"**Réputation :** {row['reputation']}\n"
             f"**Personnes aidées :** {row['helped_count']}\n"
-            f"**Formations terminées :** {row['trainings_completed']}\n"
-            f"**Note :** {average:.1f}/5 ({row['reviews_count']} avis)\n"
+            f"**Formations suivies :** {student_completed}\n"
+            f"**Formations données :** {trainer_completed}\n"
+            f"**Note comme aidant/formateur :** {average:.1f}/5 ({row['reviews_count']} avis)\n"
             f"**Disponible :** {'Oui' if row['helper_available'] else 'Non'}\n"
             f"**Compétences :** {row['skills'] or 'Aucune'}\n"
             f"**Badges :** {' • '.join(badges)}"
