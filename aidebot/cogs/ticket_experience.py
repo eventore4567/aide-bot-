@@ -6,12 +6,13 @@ import discord
 from discord.ext import commands
 
 from aidebot.experience_content import BANNER_URL
-from aidebot.payments import PAYMENT_LABELS, payment_transition_error
+from aidebot.payments import PAYMENT_LABELS, can_transition_payment, payment_transition_error
 from aidebot.permissions import can
+from aidebot.premium_access import premium_role
 
 
 class PremiumPaymentView(discord.ui.View):
-    """Remplace la commande slash de paiement par des boutons staff persistants."""
+    """Contrôles persistants de validation d’un achat Premium."""
 
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__(timeout=None)
@@ -31,8 +32,46 @@ class PremiumPaymentView(discord.ui.View):
         if req["payment_status"] == "not_required":
             return await interaction.response.send_message("Ce ticket ne demande pas de paiement.", ephemeral=True)
 
+        current = str(req["payment_status"])
+        member = interaction.guild.get_member(req["user_id"])
+        role = premium_role(interaction.guild)
+        role_added = False
+
+        # Pour une validation, on vérifie d’abord que Discord permettra vraiment
+        # d’attribuer l’abonnement. On évite un paiement "Payé" sans rôle Premium.
+        if target == "paid" and current != "paid":
+            if not can_transition_payment(current, target):
+                return await interaction.response.send_message(payment_transition_error(current, target), ephemeral=True)
+            if member is None:
+                return await interaction.response.send_message("Le client n’est plus présent sur le serveur.", ephemeral=True)
+            if role is None:
+                return await interaction.response.send_message(
+                    "Le rôle Premium est introuvable. Relance `/setup` avant de valider le paiement.",
+                    ephemeral=True,
+                )
+            me = interaction.guild.me
+            if me is None or role.managed or role >= me.top_role:
+                return await interaction.response.send_message(
+                    "Le paiement n’a pas été modifié : le bot ne peut pas attribuer le rôle **💎・VIP**. Place son rôle au-dessus puis réessaie.",
+                    ephemeral=True,
+                )
+            if role not in member.roles:
+                try:
+                    await member.add_roles(role, reason=f"Aide Bot Premium — paiement ticket #{req['id']}")
+                    role_added = True
+                except (discord.Forbidden, discord.HTTPException):
+                    return await interaction.response.send_message(
+                        "Le paiement n’a pas été modifié car Discord refuse l’attribution du rôle Premium.",
+                        ephemeral=True,
+                    )
+
         changed, previous = await self.bot.db.transition_payment(req["id"], target)
         if not changed:
+            if role_added and member is not None and role is not None:
+                try:
+                    await member.remove_roles(role, reason=f"Rollback paiement Aide Bot #{req['id']}")
+                except discord.HTTPException:
+                    pass
             if previous is None:
                 message = "Demande introuvable."
             elif previous == "not_required":
@@ -47,6 +86,16 @@ class PremiumPaymentView(discord.ui.View):
                 ephemeral=True,
             )
 
+        role_note = ""
+        if target == "paid":
+            role_note = " Le rôle **💎・VIP** est maintenant actif pour le client."
+        elif target == "refunded" and member is not None and role is not None and role in member.roles:
+            try:
+                await member.remove_roles(role, reason=f"Aide Bot Premium — remboursement ticket #{req['id']}")
+                role_note = " Le rôle **💎・VIP** a été retiré."
+            except (discord.Forbidden, discord.HTTPException):
+                role_note = " **Attention :** le remboursement est enregistré mais Discord a refusé le retrait du rôle VIP."
+
         training = self.bot.get_cog("TrainingCog")
         if training is not None:
             await training.log_action(
@@ -57,13 +106,13 @@ class PremiumPaymentView(discord.ui.View):
 
         refreshed = await self.bot.db.request_by_id(req["id"])
         state = refreshed["status"] if refreshed else "inconnu"
-        text = f"Paiement **{PAYMENT_LABELS[target]}** • demande `#{req['id']}` • statut `{state}`."
+        text = f"Paiement **{PAYMENT_LABELS[target]}** • ticket `#{req['id']}` • état `{state}`.{role_note}"
         if target == "paid":
-            text += " Le ticket peut maintenant être pris par un Formateur autorisé."
+            text += " Un Formateur peut maintenant cliquer sur **Prendre**."
         elif target == "refused":
-            text += " La prise en charge Premium reste bloquée."
+            text += " L’abonnement reste verrouillé."
         elif target == "refunded":
-            text += " Le remboursement a été enregistré."
+            text += " L’accès Premium est annulé."
         await interaction.response.send_message(text)
 
     @discord.ui.button(
@@ -106,84 +155,36 @@ class TicketExperienceCog(commands.Cog):
         if not isinstance(channel, discord.TextChannel) or not channel.name.startswith("ticket-"):
             return
 
-        # Le channel est créé avant que son ID soit enregistré dans la demande.
-        for _ in range(6):
-            await asyncio.sleep(0.5)
+        # Le premier message clair du ticket est envoyé par TrainingCog. Ce listener
+        # n’ajoute qu’un petit bloc financier quand un paiement est réellement requis.
+        for _ in range(8):
+            await asyncio.sleep(0.4)
             req = await self.bot.db.request_by_channel(channel.id)
             if req is not None:
                 break
         else:
             return
 
-        is_help = req["training_key"] == "community_help"
-        is_premium = req["payment_status"] in {"pending", "paid", "refunded", "refused"}
+        if req["payment_status"] == "not_required":
+            return
 
         e = discord.Embed(
-            title="Aide Bot — ton espace de suivi",
+            title="Premium — validation de l’achat",
             description=(
-                "Ce ticket est ton espace privé avec l’équipe Aide Bot. Explique ton problème avec le plus de contexte possible : "
-                "ce que tu veux obtenir, ce qui ne fonctionne pas, ce que tu as déjà essayé et les messages d’erreur exacts. "
-                "Tu peux envoyer des captures d’écran si elles aident à comprendre.\n\n"
-                "**Ne partage jamais de token Discord, mot de passe, code 2FA, cookie, clé API ou autre secret.** "
-                "Un membre de l’équipe n’a pas besoin de ton mot de passe pour t’aider."
+                f"**État du paiement : {PAYMENT_LABELS.get(req['payment_status'], req['payment_status'])}.**\n\n"
+                "La Direction vérifie le paiement puis utilise les boutons ci-dessous. "
+                "Quand **Paiement validé** est utilisé, le rôle **💎・VIP** est attribué automatiquement et l’abonnement devient utilisable.\n\n"
+                "Le client ne doit envoyer ici **aucun mot de passe, token, cookie, code 2FA ou code de récupération**."
             ),
-            color=0x5865F2,
-        )
-        e.add_field(
-            name="Comment la prise en charge fonctionne",
-            value=(
-                "Un Helper/Formateur autorisé, un Responsable, un Administrateur Discord ou le propriétaire peut cliquer sur "
-                "**Prendre**. L’attribution est protégée : si deux personnes essaient en même temps, une seule devient responsable du ticket. "
-                "Ensuite, cette personne te guide jusqu’à la résolution."
-            ),
-            inline=False,
-        )
-        if is_help:
-            e.add_field(
-                name="Type de service — aide gratuite",
-                value=(
-                    "Cette demande fait partie de l’entraide gratuite. Le but est de t’expliquer la solution et de te permettre de la refaire seul. "
-                    "Si ton besoin devient un projet complet, l’équipe peut te présenter une offre Premium sans rendre l’aide gratuite volontairement mauvaise."
-                ),
-                inline=False,
-            )
-        elif is_premium:
-            e.add_field(
-                name="Type de service — Premium",
-                value=(
-                    "Une demande Premium ne peut être prise en charge qu’après confirmation du paiement. La Direction, un administrateur Discord "
-                    "ou le propriétaire utilise directement les boutons de paiement sous ce message ; aucune commande slash n’est nécessaire."
-                ),
-                inline=False,
-            )
-        else:
-            e.add_field(
-                name="Type de service — formation",
-                value=(
-                    "La formation avance étape par étape. Le Formateur explique, montre un exemple, te laisse pratiquer puis valide la progression. "
-                    "À la fin, tu peux laisser un avis et garder les ressources utiles."
-                ),
-                inline=False,
-            )
-
-        e.add_field(
-            name="Pour obtenir une réponse plus vite",
-            value=(
-                "1. Décris l’objectif final.\n"
-                "2. Copie le message d’erreur exact s’il y en a un.\n"
-                "3. Dis ce que tu as déjà testé.\n"
-                "4. Envoie une capture seulement si elle apporte une information utile.\n"
-                "5. Évite de ping plusieurs membres du staff : la personne assignée suit ton ticket."
-            ),
-            inline=False,
+            color=0x9B59B6,
         )
         e.set_image(url=BANNER_URL)
-        e.set_footer(text=f"Aide Bot • Ticket #{req['id']} • suivi jusqu’à résolution")
+        e.set_footer(text=f"Aide Bot • Ticket #{req['id']} • contrôle financier réservé au staff autorisé")
 
         try:
             await channel.send(
                 embed=e,
-                view=PremiumPaymentView(self.bot) if is_premium else None,
+                view=PremiumPaymentView(self.bot),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         except (discord.Forbidden, discord.HTTPException):
