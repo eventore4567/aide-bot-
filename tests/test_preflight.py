@@ -89,3 +89,33 @@ def test_pending_reminder_on_completed_request_is_warning_not_blocker():
             await db.close()
 
     asyncio.run(run())
+
+
+def test_application_states_match_database_workflow():
+    async def run():
+        db = AideBotDatabase(":memory:")
+        await db.connect()
+        try:
+            for status in ("pending", "accepted", "rejected"):
+                await db._db().execute(
+                    """INSERT INTO applications(
+                           guild_id,user_id,target_role,status,created_at
+                       ) VALUES (1,?,?,?,1)""",
+                    (100 + len(status), "helper", status),
+                )
+            await db._db().commit()
+            counts = await database_integrity_counts(db._db())
+            assert counts["invalid_applications"] == 0
+
+            await db._db().execute(
+                """INSERT INTO applications(
+                       guild_id,user_id,target_role,status,created_at
+                   ) VALUES (1,999,'trainer','refused',1)"""
+            )
+            await db._db().commit()
+            counts = await database_integrity_counts(db._db())
+            assert counts["invalid_applications"] == 1
+        finally:
+            await db.close()
+
+    asyncio.run(run())
