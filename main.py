@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from aidebot.config import Settings
@@ -60,6 +61,19 @@ async def main() -> None:
     async def on_ready() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
+
+    @bot.tree.error
+    async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+        if isinstance(error, app_commands.CommandOnCooldown):
+            message = f"Tu vas trop vite. Réessaie dans **{error.retry_after:.0f}s**."
+        else:
+            log.exception("Erreur de commande slash", exc_info=error)
+            message = "Une erreur interne est survenue. L’action n’a pas été appliquée."
+
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
 
     async with bot:
         await bot.start(settings.token)
