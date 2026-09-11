@@ -1,0 +1,69 @@
+from aidebot.blueprint import CATEGORY_SPECS, PERMANENT_CHANNEL_COUNT
+from aidebot.cogs.center_autopost import CENTER_CHANNEL
+from aidebot.public_panels import (
+    SHOP_TITLE,
+    TICKET_TITLE,
+    VIDEOS_TITLE,
+    WELCOME_TITLE,
+    shop_embed,
+    ticket_embed,
+    videos_panel_embed,
+    welcome_embed,
+)
+from main import PUBLIC_SLASH_COMMANDS
+
+
+def _channel_names() -> list[str]:
+    return [channel for _category, channels in CATEGORY_SPECS for channel in channels]
+
+
+def _assert_embed_safe(embed) -> None:
+    assert embed.title is None or len(embed.title) <= 256
+    assert embed.description is None or len(embed.description) <= 4096
+    assert len(embed.fields) <= 25
+    for field in embed.fields:
+        assert len(field.name) <= 256
+        assert len(field.value) <= 1024
+
+
+def test_panel_first_server_structure_is_compact_and_distinct():
+    channels = _channel_names()
+    assert PERMANENT_CHANNEL_COUNT <= 15
+    assert len(channels) == len(set(channels))
+    assert "👋・bienvenue" in channels
+    assert "🎓・centre-aide" in channels
+    assert "🎓・formations" in channels
+    assert "🎥・videos-guides" in channels
+    assert "🛒・shop" in channels
+    assert "🎫・ouvrir-ticket" in channels
+    assert CENTER_CHANNEL == "🎓・centre-aide"
+    assert CENTER_CHANNEL != "👋・bienvenue"
+    assert CENTER_CHANNEL != "🎓・formations"
+
+
+def test_welcome_is_not_a_training_panel_anymore():
+    welcome = welcome_embed()
+    text = (welcome.description or "").casefold()
+    assert welcome.title == WELCOME_TITLE
+    assert "sert uniquement à t’accueillir" in text
+    assert "🎓・formations" in (welcome.description or "")
+    assert welcome.title != "Aide Bot — Centre d’aide & formations"
+    assert welcome.title != "Aide Bot — Formations"
+
+
+def test_public_panels_are_distinct_and_discord_safe():
+    embeds = [
+        welcome_embed(),
+        shop_embed(500),
+        ticket_embed(),
+        videos_panel_embed(),
+    ]
+    assert [item.title for item in embeds] == [WELCOME_TITLE, SHOP_TITLE, TICKET_TITLE, VIDEOS_TITLE]
+    assert len({item.title for item in embeds}) == len(embeds)
+    for item in embeds:
+        _assert_embed_safe(item)
+        assert item.image.url
+
+
+def test_only_setup_and_buy_are_public_slash_commands():
+    assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
