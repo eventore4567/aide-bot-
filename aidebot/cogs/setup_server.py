@@ -18,11 +18,20 @@ class SetupServerCog(commands.Cog):
         await category.set_permissions(guild.default_role, view_channel=False, reason="Aide Bot — staff privé")
         await category.set_permissions(roles["👑・Direction"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Direction")
         await category.set_permissions(roles["📘・Responsable Formation"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Responsable Formation")
-        # Fail-closed : les rôles non explicitement autorisés n’obtiennent aucun accès staff.
         for role_name in ("🎓・Formateur", "🤝・Helper", "👤・Membre"):
             await category.set_permissions(roles[role_name], view_channel=False, reason="Aide Bot — staff fail-closed")
 
     async def _reconcile_channel_permissions(self, guild: discord.Guild, channel: discord.TextChannel, roles: dict[str, discord.Role]) -> None:
+        if channel.category and channel.category.name == "━━ STAFF ━━":
+            # Une permission explicite au niveau salon peut contourner la catégorie :
+            # on verrouille donc aussi chaque salon staff.
+            await channel.set_permissions(guild.default_role, view_channel=False, reason="Aide Bot — salon staff privé")
+            await channel.set_permissions(roles["👑・Direction"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Direction")
+            await channel.set_permissions(roles["📘・Responsable Formation"], view_channel=True, send_messages=True, read_message_history=True, reason="Aide Bot — Responsable Formation")
+            for role_name in ("🎓・Formateur", "🤝・Helper", "👤・Membre"):
+                await channel.set_permissions(roles[role_name], view_channel=False, reason="Aide Bot — salon staff fail-closed")
+            return
+
         if channel.name in {"📢・annonces", "📜・règlement"}:
             await channel.set_permissions(guild.default_role, view_channel=True, send_messages=False, reason="Aide Bot — lecture seule")
             await channel.set_permissions(roles["👑・Direction"], view_channel=True, send_messages=True, manage_messages=True, reason="Aide Bot — Direction")
@@ -46,8 +55,6 @@ class SetupServerCog(commands.Cog):
             missing.append("Gérer les rôles")
         if not me.guild_permissions.manage_channels:
             missing.append("Gérer les salons")
-        if not me.guild_permissions.manage_messages:
-            missing.append("Gérer les messages")
         if missing:
             return await interaction.response.send_message(
                 "Le setup est bloqué avant toute modification. Permissions manquantes pour Aide Bot : **" + ", ".join(missing) + "**.",
