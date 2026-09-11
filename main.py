@@ -23,6 +23,7 @@ EXTENSIONS = (
     "aidebot.cogs.center",
     "aidebot.cogs.center_autopost",
     "aidebot.cogs.storefront",
+    "aidebot.cogs.recruitment_panel",
     "aidebot.cogs.ticket_experience",
     "aidebot.cogs.ticket_recovery",
     "aidebot.cogs.community",
@@ -42,12 +43,7 @@ PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
 
 
 def prune_public_slash_commands(tree: app_commands.CommandTree) -> None:
-    """Keep only the V40 public slash surface.
-
-    `app_commands.Group` does not expose `.type`, while regular slash/context
-    commands can. Remove groups with the default chat-input type and preserve
-    the explicit type only when Discord.py actually provides it.
-    """
+    """Keep only the panel-first public slash surface."""
     for command in list(tree.get_commands()):
         if command.name in PUBLIC_SLASH_COMMANDS:
             continue
@@ -77,8 +73,6 @@ class AideBot(commands.Bot):
         for extension in EXTENSIONS:
             await self.load_extension(extension)
 
-        # Aide Bot V40 n'expose que les deux entrées voulues : /setup et /buy.
-        # Toute la logique avancée reste disponible via boutons, menus et vues.
         prune_public_slash_commands(self.tree)
 
         if self.settings.guild_id:
