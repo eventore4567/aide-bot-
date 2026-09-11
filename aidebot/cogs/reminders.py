@@ -15,6 +15,7 @@ from aidebot.reminder_delivery import (
     processing_reminders,
     release_processing_reminder,
 )
+from aidebot.reminder_schedule import cancel_reminder_schedule_atomic, schedule_reminder_atomic
 
 log = logging.getLogger("aidebot.reminders")
 
@@ -122,15 +123,22 @@ class RemindersCog(commands.Cog):
             return await interaction.response.send_message("Cette demande n'est plus active.", ephemeral=True)
 
         remind_at = int(time.time()) + int(minutes) * 60
-        reminder_id = await self.bot.db.create_reminder(
-            interaction.guild.id,
-            req["id"],
-            interaction.channel.id,
-            req["user_id"],
-            req["trainer_id"],
-            remind_at,
+        result = await schedule_reminder_atomic(
+            self.bot.db,
+            guild_id=interaction.guild.id,
+            request_id=req["id"],
+            channel_id=interaction.channel.id,
+            user_id=req["user_id"],
+            trainer_id=req["trainer_id"],
+            remind_at=remind_at,
         )
-        await self.bot.db.update_request(req["id"], scheduled_for=f"<t:{remind_at}:F>")
+        if result.reminder_id is None:
+            if result.reason == "delivery_in_progress":
+                message = "Un rappel est en cours d'envoi. Attends quelques secondes avant de le reprogrammer."
+            else:
+                message = "La demande n'est plus active, le rappel n'a pas été créé."
+            return await interaction.response.send_message(message, ephemeral=True)
+        reminder_id = result.reminder_id
 
         training = self.bot.get_cog("TrainingCog")
         if training:
@@ -153,9 +161,19 @@ class RemindersCog(commands.Cog):
             return await interaction.response.send_message("Utilise cette commande dans un ticket de formation.", ephemeral=True)
         if not await self._can_manage_request(interaction, req):
             return await interaction.response.send_message("Seul le formateur assigné ou un responsable peut annuler le rappel.", ephemeral=True)
-        count = await self.bot.db.cancel_reminders_for_request(req["id"])
+
+        result = await cancel_reminder_schedule_atomic(
+            self.bot.db,
+            guild_id=interaction.guild.id,
+            request_id=req["id"],
+        )
+        if result.delivery_in_progress:
+            return await interaction.response.send_message(
+                "Le rappel est déjà en cours d'envoi. Impossible de confirmer son annulation sans risquer un état incohérent.",
+                ephemeral=True,
+            )
         await interaction.response.send_message(
-            "Rappel annulé." if count else "Aucun rappel en attente n'a pu être annulé.",
+            "Rappel annulé et planning effacé." if result.cancelled else "Aucun rappel en attente. Le planning a été nettoyé.",
             ephemeral=True,
         )
 
