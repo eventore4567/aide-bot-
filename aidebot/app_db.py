@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import time
+from typing import Any
+
 import aiosqlite
 
 from aidebot.db import Database
 
 
-class AideBotDatabase(Database):
-    """Application-level read models built on top of the core SQLite store.
+ACTIVE_REQUEST_STATUSES = ("open", "assigned", "in_progress", "payment_pending")
 
-    The historical `profiles.trainings_completed` counter tracks trainings
-    completed *as trainer*. Student progress is derived from requests so the
-    member-facing profile does not confuse trainings followed with trainings
-    delivered.
-    """
+
+class AideBotDatabase(Database):
+    """Application-level read models and atomic workflow operations."""
 
     async def student_training_count(self, guild_id: int, user_id: int) -> int:
         cur = await self._db().execute(
@@ -38,3 +38,141 @@ class AideBotDatabase(Database):
             (guild_id, user_id, limit),
         )
         return list(await cur.fetchall())
+
+    async def active_request_for_training(self, guild_id: int, user_id: int, training_key: str) -> aiosqlite.Row | None:
+        cur = await self._db().execute(
+            """SELECT * FROM requests
+               WHERE guild_id=? AND user_id=? AND training_key=?
+                 AND status IN ('open','assigned','in_progress','payment_pending')
+               ORDER BY id DESC LIMIT 1""",
+            (guild_id, user_id, training_key),
+        )
+        return await cur.fetchone()
+
+    async def create_request_guarded(self, **values: Any) -> tuple[int | None, aiosqlite.Row | None]:
+        """Create one active request per member/training, serialized in SQLite.
+
+        Returns ``(new_id, None)`` when created or ``(None, existing_row)`` when
+        an active request already exists.
+        """
+        db = self._db()
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await db.execute(
+                """SELECT * FROM requests
+                   WHERE guild_id=? AND user_id=? AND training_key=?
+                     AND status IN ('open','assigned','in_progress','payment_pending')
+                   ORDER BY id DESC LIMIT 1""",
+                (values["guild_id"], values["user_id"], values["training_key"]),
+            )
+            existing = await cur.fetchone()
+            if existing:
+                await db.rollback()
+                return None, existing
+
+            cur = await db.execute(
+                """INSERT INTO requests(
+                       guild_id,user_id,training_key,level,objective,availability,budget,
+                       status,total_steps,payment_status,invite_used,created_at
+                   ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    values["guild_id"], values["user_id"], values["training_key"], values.get("level", ""),
+                    values.get("objective", ""), values.get("availability", ""), values.get("budget", ""),
+                    values.get("status", "open"), values.get("total_steps", 1), values.get("payment_status", "not_required"),
+                    1 if values.get("invite_used") else 0, int(time.time()),
+                ),
+            )
+            await db.commit()
+            return int(cur.lastrowid), None
+        except Exception:
+            await db.rollback()
+            raise
+
+    async def cancel_request_creation(self, request_id: int) -> bool:
+        cur = await self._db().execute(
+            """UPDATE requests SET status='cancelled'
+               WHERE id=? AND channel_id IS NULL
+                 AND status IN ('open','assigned','in_progress','payment_pending')""",
+            (request_id,),
+        )
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def claim_request(self, request_id: int, trainer_id: int) -> bool:
+        cur = await self._db().execute(
+            """UPDATE requests SET trainer_id=?, status='assigned'
+               WHERE id=? AND trainer_id IS NULL
+                 AND payment_status!='pending'
+                 AND status IN ('open','assigned','in_progress')""",
+            (trainer_id, request_id),
+        )
+        await self._db().commit()
+        if cur.rowcount > 0:
+            return True
+        row = await self.request_by_id(request_id)
+        return bool(row and row["trainer_id"] == trainer_id and row["status"] in {"assigned", "in_progress"})
+
+    async def advance_request(self, request_id: int) -> tuple[int, int] | None:
+        db = self._db()
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await db.execute("SELECT progress,total_steps,status,trainer_id FROM requests WHERE id=?", (request_id,))
+            row = await cur.fetchone()
+            if not row or not row["trainer_id"] or row["status"] not in {"open", "assigned", "in_progress"}:
+                await db.rollback()
+                return None
+            progress = min(int(row["progress"]) + 1, int(row["total_steps"]))
+            await db.execute("UPDATE requests SET progress=?, status='in_progress' WHERE id=?", (progress, request_id))
+            await db.commit()
+            return progress, int(row["total_steps"])
+        except Exception:
+            await db.rollback()
+            raise
+
+    async def complete_request_once(self, request_id: int) -> aiosqlite.Row | None:
+        db = self._db()
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await db.execute("SELECT * FROM requests WHERE id=?", (request_id,))
+            row = await cur.fetchone()
+            if not row or not row["trainer_id"] or row["status"] not in {"open", "assigned", "in_progress"}:
+                await db.rollback()
+                return None
+            await db.execute(
+                "UPDATE requests SET status='completed', progress=total_steps WHERE id=?",
+                (request_id,),
+            )
+            await db.commit()
+            return row
+        except Exception:
+            await db.rollback()
+            raise
+
+    async def close_request_once(self, request_id: int) -> bool:
+        cur = await self._db().execute(
+            "UPDATE requests SET status='closed' WHERE id=? AND status='completed'",
+            (request_id,),
+        )
+        await self._db().commit()
+        return cur.rowcount > 0
+
+    async def active_requests_for_guild(self, guild_id: int, limit: int = 200) -> list[aiosqlite.Row]:
+        cur = await self._db().execute(
+            """SELECT * FROM requests
+               WHERE guild_id=? AND status IN ('open','assigned','in_progress','payment_pending')
+               ORDER BY created_at ASC LIMIT ?""",
+            (guild_id, limit),
+        )
+        return list(await cur.fetchall())
+
+    async def cancel_orphan_request(self, request_id: int) -> bool:
+        cur = await self._db().execute(
+            """UPDATE requests SET status='cancelled'
+               WHERE id=? AND status IN ('open','assigned','in_progress','payment_pending')""",
+            (request_id,),
+        )
+        await self._db().commit()
+        if cur.rowcount:
+            await self.cancel_reminders_for_request(request_id)
+            return True
+        return False
