@@ -14,6 +14,26 @@ ACTIVE_REQUEST_STATUSES = ("open", "assigned", "in_progress", "payment_pending")
 class AideBotDatabase(Database):
     """Application-level read models and atomic workflow operations."""
 
+    async def connect(self) -> None:
+        await super().connect()
+        await self._db().executescript(
+            """
+            CREATE TABLE IF NOT EXISTS learning_progress (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                path_key TEXT NOT NULL,
+                max_lesson INTEGER NOT NULL DEFAULT 0,
+                quiz_attempts INTEGER NOT NULL DEFAULT 0,
+                quiz_correct INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (guild_id, user_id, path_key)
+            );
+            CREATE INDEX IF NOT EXISTS learning_progress_user_idx
+                ON learning_progress(guild_id, user_id, updated_at DESC);
+            """
+        )
+        await self._db().commit()
+
     async def student_training_count(self, guild_id: int, user_id: int) -> int:
         cur = await self._db().execute(
             """SELECT COUNT(*) AS n
@@ -176,3 +196,42 @@ class AideBotDatabase(Database):
             await self.cancel_reminders_for_request(request_id)
             return True
         return False
+
+    async def mark_lesson_seen(self, guild_id: int, user_id: int, path_key: str, lesson_number: int) -> None:
+        now = int(time.time())
+        await self._db().execute(
+            """INSERT INTO learning_progress(guild_id,user_id,path_key,max_lesson,updated_at)
+               VALUES (?,?,?,?,?)
+               ON CONFLICT(guild_id,user_id,path_key) DO UPDATE SET
+                 max_lesson=MAX(learning_progress.max_lesson, excluded.max_lesson),
+                 updated_at=excluded.updated_at""",
+            (guild_id, user_id, path_key, lesson_number, now),
+        )
+        await self._db().commit()
+
+    async def record_quiz_answer(self, guild_id: int, user_id: int, path_key: str, correct: bool) -> None:
+        now = int(time.time())
+        await self._db().execute(
+            """INSERT INTO learning_progress(guild_id,user_id,path_key,quiz_attempts,quiz_correct,updated_at)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(guild_id,user_id,path_key) DO UPDATE SET
+                 quiz_attempts=learning_progress.quiz_attempts+1,
+                 quiz_correct=learning_progress.quiz_correct+excluded.quiz_correct,
+                 updated_at=excluded.updated_at""",
+            (guild_id, user_id, path_key, 1, 1 if correct else 0, now),
+        )
+        await self._db().commit()
+
+    async def learning_progress_for_path(self, guild_id: int, user_id: int, path_key: str) -> aiosqlite.Row | None:
+        cur = await self._db().execute(
+            "SELECT * FROM learning_progress WHERE guild_id=? AND user_id=? AND path_key=?",
+            (guild_id, user_id, path_key),
+        )
+        return await cur.fetchone()
+
+    async def learning_progress(self, guild_id: int, user_id: int) -> list[aiosqlite.Row]:
+        cur = await self._db().execute(
+            "SELECT * FROM learning_progress WHERE guild_id=? AND user_id=? ORDER BY updated_at DESC, path_key ASC",
+            (guild_id, user_id),
+        )
+        return list(await cur.fetchall())
