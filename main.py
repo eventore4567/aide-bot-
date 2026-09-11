@@ -41,6 +41,23 @@ EXTENSIONS = (
 PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
 
 
+def prune_public_slash_commands(tree: app_commands.CommandTree) -> None:
+    """Keep only the V40 public slash surface.
+
+    `app_commands.Group` does not expose `.type`, while regular slash/context
+    commands can. Remove groups with the default chat-input type and preserve
+    the explicit type only when Discord.py actually provides it.
+    """
+    for command in list(tree.get_commands()):
+        if command.name in PUBLIC_SLASH_COMMANDS:
+            continue
+        command_type = getattr(command, "type", None)
+        if command_type is None:
+            tree.remove_command(command.name)
+        else:
+            tree.remove_command(command.name, type=command_type)
+
+
 class AideBot(commands.Bot):
     def __init__(self, settings: Settings) -> None:
         intents = discord.Intents.default()
@@ -62,9 +79,7 @@ class AideBot(commands.Bot):
 
         # Aide Bot V40 n'expose que les deux entrées voulues : /setup et /buy.
         # Toute la logique avancée reste disponible via boutons, menus et vues.
-        for command in list(self.tree.get_commands()):
-            if command.name not in PUBLIC_SLASH_COMMANDS:
-                self.tree.remove_command(command.name, type=command.type)
+        prune_public_slash_commands(self.tree)
 
         if self.settings.guild_id:
             guild = discord.Object(id=self.settings.guild_id)
