@@ -9,9 +9,26 @@ from aidebot.blueprint import ROLE_SPECS
 from aidebot.permissions import CAPABILITIES, can, decide
 
 
+APPLICATION_ROLES = {
+    "helper": "🤝・Helper",
+    "trainer": "🎓・Formateur",
+}
+
+
 class AdminCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+
+    async def _audit(self, guild: discord.Guild, title: str, description: str) -> None:
+        channel = discord.utils.get(guild.text_channels, name="🧾・logs")
+        if channel:
+            try:
+                await channel.send(
+                    embed=discord.Embed(title=title, description=description, color=0x2B2D31),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except discord.HTTPException:
+                pass
 
     @app_commands.command(name="permissions_test", description="Diagnostiquer les permissions Aide Bot d’un membre")
     async def permissions_test(self, interaction: discord.Interaction, membre: discord.Member) -> None:
@@ -93,6 +110,80 @@ class AdminCog(commands.Cog):
         if training:
             await training.log_action(interaction.guild, "Paiement confirmé", f"#{req['id']} confirmé par {interaction.user.mention}")
         await interaction.response.send_message("Paiement marqué **payé**. Le ticket peut maintenant être pris par un formateur.")
+
+    @app_commands.command(name="candidatures", description="Voir les candidatures Helper/Formateur en attente")
+    async def candidatures(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            return
+        if not can(interaction.user, "applications.review"):
+            return await interaction.response.send_message("Accès refusé : `applications.review` requis.", ephemeral=True)
+        rows = await self.bot.db.pending_applications(interaction.guild.id, 20)
+        if not rows:
+            return await interaction.response.send_message("Aucune candidature en attente.", ephemeral=True)
+        lines = []
+        for row in rows:
+            label = "Formateur" if row["target_role"] == "trainer" else "Helper"
+            lines.append(f"**#{row['id']}** • <@{row['user_id']}> • {label} • {row['skills'] or 'compétences non renseignées'}")
+        await interaction.response.send_message(
+            embed=discord.Embed(title="Candidatures en attente", description="\n".join(lines)[:4000], color=0xF1C40F),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @app_commands.command(name="candidature_valider", description="Accepter ou refuser une candidature Helper/Formateur")
+    @app_commands.describe(id="Identifiant de la candidature", accepte="True pour accepter, False pour refuser", raison="Raison optionnelle")
+    async def candidature_valider(self, interaction: discord.Interaction, id: int, accepte: bool, raison: str = "") -> None:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            return
+        if not can(interaction.user, "applications.review"):
+            return await interaction.response.send_message("Accès refusé : `applications.review` requis.", ephemeral=True)
+
+        row = await self.bot.db.application(id)
+        if not row or row["guild_id"] != interaction.guild.id:
+            return await interaction.response.send_message("Candidature introuvable.", ephemeral=True)
+        if row["status"] != "pending":
+            return await interaction.response.send_message("Cette candidature a déjà été traitée.", ephemeral=True)
+
+        member = interaction.guild.get_member(row["user_id"])
+        role_name = APPLICATION_ROLES.get(row["target_role"])
+        role = discord.utils.get(interaction.guild.roles, name=role_name) if role_name else None
+
+        if accepte:
+            if member is None:
+                return await interaction.response.send_message("Le candidat n'est plus sur le serveur.", ephemeral=True)
+            if role is None:
+                return await interaction.response.send_message("Le rôle cible est introuvable. Relance `/setup` puis réessaie.", ephemeral=True)
+            me = interaction.guild.me
+            if me is None or role.managed or role >= me.top_role:
+                return await interaction.response.send_message(
+                    "Le bot ne peut pas attribuer ce rôle. Vérifie sa hiérarchie Discord.",
+                    ephemeral=True,
+                )
+            try:
+                await member.add_roles(role, reason=f"Candidature Aide Bot #{id} acceptée")
+            except discord.Forbidden:
+                return await interaction.response.send_message("Discord refuse l'attribution du rôle. Vérifie les permissions du bot.", ephemeral=True)
+
+        changed = await self.bot.db.resolve_application(id, interaction.user.id, accepte, raison)
+        if not changed:
+            return await interaction.response.send_message("La candidature a été traitée entre-temps.", ephemeral=True)
+
+        verdict = "acceptée" if accepte else "refusée"
+        role_label = "Formateur" if row["target_role"] == "trainer" else "Helper"
+        await self._audit(
+            interaction.guild,
+            "Candidature traitée",
+            f"#{id} • {role_label} • {verdict} par {interaction.user.mention} • candidat <@{row['user_id']}>",
+        )
+
+        if member:
+            try:
+                detail = f"\nRaison : {raison[:500]}" if raison.strip() else ""
+                await member.send(f"Ta candidature **#{id}** pour devenir **{role_label}** a été **{verdict}**.{detail}")
+            except discord.HTTPException:
+                pass
+
+        await interaction.response.send_message(f"Candidature **#{id} {verdict}**.", ephemeral=True)
 
     @app_commands.command(name="staff_stats", description="Voir les statistiques d’un Helper/Formateur")
     async def staff_stats(self, interaction: discord.Interaction, membre: discord.Member) -> None:
