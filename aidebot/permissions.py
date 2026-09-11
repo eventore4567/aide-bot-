@@ -11,6 +11,7 @@ CAPABILITIES: dict[str, tuple[str, ...]] = {
     "challenge.review": ("🤝・Helper", "🎓・Formateur", "📘・Responsable Formation", "👑・Direction"),
     "mentorship.claim": ("🤝・Helper", "🎓・Formateur", "📘・Responsable Formation", "👑・Direction"),
     "dashboard.view": ("📘・Responsable Formation", "👑・Direction"),
+    "audit.run": ("📘・Responsable Formation", "👑・Direction"),
     "payment.confirm": ("👑・Direction",),
     "applications.review": ("📘・Responsable Formation", "👑・Direction"),
     "config.manage": ("👑・Direction",),
