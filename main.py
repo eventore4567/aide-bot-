@@ -16,6 +16,7 @@ log = logging.getLogger("aidebot")
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.community",
+    "aidebot.cogs.diagnostic",
     "aidebot.cogs.invites",
     "aidebot.cogs.learning",
     "aidebot.cogs.self_learning",
