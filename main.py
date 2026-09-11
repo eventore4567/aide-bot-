@@ -18,6 +18,7 @@ EXTENSIONS = (
     "aidebot.cogs.community",
     "aidebot.cogs.invites",
     "aidebot.cogs.learning",
+    "aidebot.cogs.reminders",
     "aidebot.cogs.admin",
     "aidebot.cogs.setup_server",
 )
@@ -76,8 +77,14 @@ async def main() -> None:
         else:
             await interaction.response.send_message(message, ephemeral=True)
 
-    async with bot:
-        await bot.start(settings.token)
+    try:
+        async with bot:
+            await bot.start(settings.token)
+    except discord.PrivilegedIntentsRequired:
+        log.critical(
+            "Discord refuse Server Members Intent. Active Developer Portal > Bot > Privileged Gateway Intents > Server Members Intent, puis redémarre le service."
+        )
+        raise
 
 
 if __name__ == "__main__":
