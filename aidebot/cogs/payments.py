@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from aidebot.payments import PAYMENT_LABELS, REQUEST_STATUS_FOR_PAYMENT, normalize_payment_state
+from aidebot.payments import PAYMENT_LABELS, normalize_payment_state, payment_transition_error
 from aidebot.permissions import can
 
 
@@ -33,11 +33,21 @@ class PaymentsCog(commands.Cog):
                 ephemeral=True,
             )
 
-        await self.bot.db.update_request(
-            req["id"],
-            payment_status=normalized,
-            status=REQUEST_STATUS_FOR_PAYMENT[normalized],
-        )
+        changed, previous = await self.bot.db.transition_payment(req["id"], normalized)
+        if not changed:
+            if previous == "not_required":
+                message = "Ce ticket ne demande pas de paiement."
+            elif previous is None:
+                message = "Demande introuvable."
+            else:
+                message = payment_transition_error(previous, normalized)
+            return await interaction.response.send_message(message, ephemeral=True)
+
+        if previous == normalized:
+            return await interaction.response.send_message(
+                f"Le paiement est déjà **{PAYMENT_LABELS[normalized]}**. Aucune modification appliquée.",
+                ephemeral=True,
+            )
 
         training = self.bot.get_cog("TrainingCog")
         if training:
@@ -45,16 +55,21 @@ class PaymentsCog(commands.Cog):
             await training.log_action(
                 interaction.guild,
                 "Statut paiement",
-                f"#{req['id']} → **{PAYMENT_LABELS[normalized]}** par {interaction.user.mention}{suffix}",
+                f"#{req['id']} • {PAYMENT_LABELS.get(previous or '', previous or '?')} → **{PAYMENT_LABELS[normalized]}** par {interaction.user.mention}{suffix}",
             )
 
-        message = f"Paiement de la demande **#{req['id']}** : **{PAYMENT_LABELS[normalized]}**."
+        refreshed = await self.bot.db.request_by_id(req["id"])
+        request_state = refreshed["status"] if refreshed else "inconnu"
+        message = (
+            f"Paiement de la demande **#{req['id']}** : **{PAYMENT_LABELS[normalized]}**.\n"
+            f"Statut de la demande : `{request_state}`."
+        )
         if normalized == "paid":
-            message += " Le ticket est maintenant disponible pour un Formateur."
+            message += " Le ticket est disponible pour un Formateur s’il n’est pas déjà terminé."
         elif normalized == "refused":
             message += " Le ticket reste bloqué jusqu’à une nouvelle décision de la Direction."
         elif normalized == "refunded":
-            message += " Le remboursement est enregistré dans l’historique du ticket."
+            message += " Le remboursement est enregistré sans effacer une formation déjà terminée."
 
         await interaction.response.send_message(message)
 
