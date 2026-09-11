@@ -30,7 +30,8 @@ Le projet combine un serveur compact (15 salons permanents maximum), un bot cent
 - Recherche de Helpers disponibles selon leurs compétences (`/aide trouver_helper`).
 - Invitations avec validation différée et récompenses.
 - Candidatures Helper/Formateur enregistrées, listées et validées par le staff.
-- Diagnostic `/permissions_test` et audit `/audit_serveur`.
+- Diagnostic `/permissions_test`, audit `/audit_serveur` et contrôle de lancement `/sante`.
+- `/sante` vérifie permissions essentielles, hiérarchie des rôles, accès SQLite, chemin de persistance Railway, structure du serveur et latence Discord.
 - Dashboard, classement, logs et statistiques staff.
 - Tests GitHub Actions sur la base, les permissions, la progression, les ressources et les principaux workflows.
 
@@ -51,7 +52,7 @@ DISCORD_TOKEN=...
 GUILD_ID=...
 ```
 
-Le bot utilise SQLite pour la V1 (`data/aidebot.db`). Sur Railway, ajoutez un volume persistant avant une vraie ouverture publique, ou migrez la couche de stockage vers PostgreSQL. Aucun secret ne doit être commité dans GitHub.
+Le bot utilise SQLite pour la V1 (`data/aidebot.db`). Sur Railway, ajoutez un volume persistant avant une vraie ouverture publique et configurez idéalement `AIDEBOT_DB_PATH=/data/aidebot.db`, ou migrez la couche de stockage vers PostgreSQL. Aucun secret ne doit être commité dans GitHub.
 
 ## Railway / Discord
 
@@ -66,7 +67,7 @@ Les déploiements automatiques restent volontairement neutralisés pendant la ph
 1. Activer **Server Members Intent** puis effectuer un démarrage réel sur Railway.
 2. Ajouter un stockage persistant Railway (volume) ou PostgreSQL avant de conserver de vraies données membres.
 3. Tester le parcours Discord complet : invitation -> formation -> attribution -> rappel -> progression -> avis -> candidature -> entraide.
-4. Vérifier `/audit_serveur` après `/setup` sur le serveur cible.
+4. Vérifier `/sante` puis `/audit_serveur` après `/setup` sur le serveur cible.
 
 ## Documentation
 
