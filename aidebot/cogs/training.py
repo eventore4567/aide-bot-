@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from aidebot.catalog import FORMATIONS
 from aidebot.permissions import can, decide
+from aidebot.ticketing import format_guidance
 
 
 def embed(title: str, description: str, color: int = 0x5865F2) -> discord.Embed:
@@ -86,9 +87,11 @@ class TicketActionsView(discord.ui.View):
                 f"Accès refusé. Permission `{capability}`. Rôles autorisés : {roles}.",
                 ephemeral=True,
             )
-        if req["trainer_id"] and req["trainer_id"] != interaction.user.id:
-            return await interaction.response.send_message(f"Déjà prise par <@{req['trainer_id']}>.", ephemeral=True)
-        await self.cog.bot.db.update_request(req["id"], trainer_id=interaction.user.id, status="assigned")
+        if not await self.cog.bot.db.claim_request(req["id"], interaction.user.id):
+            fresh = await self.cog.bot.db.request_by_id(req["id"])
+            if fresh and fresh["trainer_id"]:
+                return await interaction.response.send_message(f"Déjà prise par <@{fresh['trainer_id']}>.", ephemeral=True)
+            return await interaction.response.send_message("Cette demande n’est plus disponible.", ephemeral=True)
         await self.cog.log_action(interaction.guild, "Demande prise", f"#{req['id']} prise par {interaction.user.mention}")
         await interaction.response.send_message(f"Demande prise par {interaction.user.mention}.")
 
@@ -101,14 +104,18 @@ class TicketActionsView(discord.ui.View):
             return await interaction.response.send_message("Demande introuvable.", ephemeral=True)
         if interaction.user.id != req["trainer_id"] and not can(interaction.user, "training.manage"):
             return await interaction.response.send_message("Seul le formateur assigné ou un responsable peut avancer la progression.", ephemeral=True)
-        if req["status"] in {"completed", "closed"}:
-            return await interaction.response.send_message("Cette demande est déjà terminée.", ephemeral=True)
-        new_progress = min(req["progress"] + 1, req["total_steps"])
-        await self.cog.bot.db.update_request(req["id"], progress=new_progress, status="in_progress")
+        advanced = await self.cog.bot.db.advance_request(req["id"])
+        if advanced is None:
+            return await interaction.response.send_message("Impossible d’avancer : la demande est terminée, fermée ou sans formateur.", ephemeral=True)
+        new_progress, total_steps = advanced
         data = FORMATIONS.get(req["training_key"])
-        next_label = "Terminé" if new_progress >= req["total_steps"] else (data["steps"][new_progress] if data and new_progress < len(data["steps"]) else "Étape suivante")
-        await self.cog.log_action(interaction.guild, "Progression", f"#{req['id']} • {new_progress}/{req['total_steps']} par {interaction.user.mention}")
-        await interaction.response.send_message(f"Progression : **{new_progress}/{req['total_steps']}** • prochain : **{next_label}**")
+        next_label = "Terminé" if new_progress >= total_steps else (data["steps"][new_progress] if data and new_progress < len(data["steps"]) else "Étape suivante")
+        guidance = format_guidance(req["training_key"], new_progress)
+        await self.cog.log_action(interaction.guild, "Progression", f"#{req['id']} • {new_progress}/{total_steps} par {interaction.user.mention}")
+        message = f"Progression : **{new_progress}/{total_steps}** • prochain : **{next_label}**"
+        if guidance:
+            message += f"\n\n{guidance}"
+        await interaction.response.send_message(message)
 
     @discord.ui.button(label="Terminer", style=discord.ButtonStyle.success, custom_id="aidebot:ticket:complete")
     async def complete(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
@@ -121,12 +128,12 @@ class TicketActionsView(discord.ui.View):
             return await interaction.response.send_message("Tu ne peux pas terminer cette demande.", ephemeral=True)
         if not req["trainer_id"]:
             return await interaction.response.send_message("Aucun Helper/Formateur n’est assigné.", ephemeral=True)
-        if req["status"] in {"completed", "closed"}:
-            return await interaction.response.send_message("Cette demande est déjà terminée.", ephemeral=True)
-        await self.cog.bot.db.update_request(req["id"], status="completed", progress=req["total_steps"])
-        await self.cog.bot.db.complete_for_trainer(interaction.guild.id, req["trainer_id"], req["training_key"] == "community_help")
-        student = interaction.guild.get_member(req["user_id"])
-        if student and req["training_key"] != "community_help":
+        completed = await self.cog.bot.db.complete_request_once(req["id"])
+        if completed is None:
+            return await interaction.response.send_message("Cette demande a déjà été terminée ou n’est plus dans un état valide.", ephemeral=True)
+        await self.cog.bot.db.complete_for_trainer(interaction.guild.id, completed["trainer_id"], completed["training_key"] == "community_help")
+        student = interaction.guild.get_member(completed["user_id"])
+        if student and completed["training_key"] != "community_help":
             certificate = discord.utils.get(interaction.guild.roles, name="✅・Apprenant certifié")
             if certificate:
                 try:
@@ -145,9 +152,8 @@ class TicketActionsView(discord.ui.View):
             return await interaction.response.send_message("Demande introuvable.", ephemeral=True)
         if interaction.user.id != req["user_id"] and not can(interaction.user, "training.manage"):
             return await interaction.response.send_message("Seul le client ou un responsable peut archiver ce ticket.", ephemeral=True)
-        if req["status"] != "completed":
-            return await interaction.response.send_message("Termine d’abord la demande avant de l’archiver.", ephemeral=True)
-        await self.cog.bot.db.update_request(req["id"], status="closed")
+        if not await self.cog.bot.db.close_request_once(req["id"]):
+            return await interaction.response.send_message("La demande doit être terminée avant d’être archivée.", ephemeral=True)
         client = interaction.guild.get_member(req["user_id"])
         if client:
             try:
@@ -176,6 +182,15 @@ class TrainingRequestModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
+        existing = await self.cog.bot.db.active_request_for_training(interaction.guild.id, interaction.user.id, self.training_key)
+        if existing:
+            channel = interaction.guild.get_channel(existing["channel_id"]) if existing["channel_id"] else None
+            destination = channel.mention if isinstance(channel, discord.TextChannel) else f"demande #{existing['id']}"
+            return await interaction.response.send_message(
+                f"Tu as déjà une demande active pour cette formation : {destination}. Termine ou archive-la avant d’en ouvrir une autre.",
+                ephemeral=True,
+            )
+
         data = FORMATIONS[self.training_key]
         invite_used = False
         if not data["vip"] and not can(interaction.user, "training.claim"):
@@ -236,12 +251,44 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
             except discord.HTTPException:
                 pass
 
+    async def _rollback_creation(self, guild: discord.Guild, request_id: int, invite_used: bool, channel: discord.TextChannel | None = None) -> None:
+        if channel is None:
+            await self.bot.db.cancel_request_creation(request_id)
+        else:
+            await self.bot.db.cancel_orphan_request(request_id)
+            try:
+                await channel.delete(reason="Rollback création ticket Aide Bot")
+            except discord.HTTPException:
+                pass
+        if invite_used:
+            await self.bot.db.add_invite_credit(guild.id, (await self.bot.db.request_by_id(request_id))["user_id"], 1)
+
     async def create_request_channel(self, interaction: discord.Interaction, training_key: str, **fields) -> None:
         guild = interaction.guild
         assert guild is not None and isinstance(interaction.user, discord.Member)
         services = discord.utils.get(guild.categories, name="━━ SERVICES ━━")
         if not services:
+            if fields.get("invite_used"):
+                await self.bot.db.add_invite_credit(guild.id, interaction.user.id, 1)
             return await interaction.response.send_message("Le serveur n’est pas encore configuré. Lance `/setup`.", ephemeral=True)
+
+        request_id, existing = await self.bot.db.create_request_guarded(
+            guild_id=guild.id,
+            user_id=interaction.user.id,
+            training_key=training_key,
+            total_steps=len(FORMATIONS[training_key]["steps"]) if training_key in FORMATIONS else 1,
+            **fields,
+        )
+        if request_id is None:
+            if fields.get("invite_used"):
+                await self.bot.db.add_invite_credit(guild.id, interaction.user.id, 1)
+            channel = guild.get_channel(existing["channel_id"]) if existing and existing["channel_id"] else None
+            destination = channel.mention if isinstance(channel, discord.TextChannel) else f"demande #{existing['id']}" if existing else "une demande existante"
+            return await interaction.response.send_message(
+                f"Une demande identique est déjà active : {destination}. Aucun crédit n’a été perdu.",
+                ephemeral=True,
+            )
+
         staff_roles = [r for r in guild.roles if r.name in {"👑・Direction", "📘・Responsable Formation", "🎓・Formateur"}]
         if training_key == "community_help":
             helper = discord.utils.get(guild.roles, name="🤝・Helper")
@@ -255,13 +302,7 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
             overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
         for role in staff_roles:
             overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
-        request_id = await self.bot.db.create_request(
-            guild_id=guild.id,
-            user_id=interaction.user.id,
-            training_key=training_key,
-            total_steps=len(FORMATIONS[training_key]["steps"]) if training_key in FORMATIONS else 1,
-            **fields,
-        )
+
         try:
             channel = await guild.create_text_channel(
                 f"ticket-{request_id}-{interaction.user.name}"[:95],
@@ -269,10 +310,13 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
                 overwrites=overwrites,
                 reason="Nouvelle demande Aide Bot",
             )
-        except discord.Forbidden:
-            if fields.get("invite_used"):
-                await self.bot.db.add_invite_credit(guild.id, interaction.user.id, 1)
-            return await interaction.response.send_message("Le bot n’a pas la permission de créer le ticket. L’invitation utilisée a été recréditée.", ephemeral=True)
+        except (discord.Forbidden, discord.HTTPException):
+            await self._rollback_creation(guild, request_id, bool(fields.get("invite_used")))
+            return await interaction.response.send_message(
+                "Impossible de créer le ticket. La demande a été annulée proprement" + (" et ton invitation a été recréditée." if fields.get("invite_used") else "."),
+                ephemeral=True,
+            )
+
         await self.bot.db.set_request_channel(request_id, channel.id)
         title = FORMATIONS.get(training_key, {"title": "Aide communautaire"})["title"]
         desc = (
@@ -284,7 +328,18 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
             f"**Statut :** `{fields.get('status', 'open')}`\n"
             f"**Paiement :** `{fields.get('payment_status', 'not_required')}`"
         )
-        await channel.send(embed=embed("Nouvelle demande", desc), view=TicketActionsView(self))
+        try:
+            await channel.send(embed=embed("Nouvelle demande", desc), view=TicketActionsView(self))
+            guidance = format_guidance(training_key, 0)
+            if guidance:
+                await channel.send(embed=embed("Ressource de départ", guidance, 0x3498DB))
+        except (discord.Forbidden, discord.HTTPException):
+            await self._rollback_creation(guild, request_id, bool(fields.get("invite_used")), channel)
+            return await interaction.response.send_message(
+                "Le ticket n’a pas pu être initialisé correctement. La création a été annulée" + (" et ton invitation a été recréditée." if fields.get("invite_used") else "."),
+                ephemeral=True,
+            )
+
         await self.log_action(guild, "Nouvelle demande", f"#{request_id} • {title} • {interaction.user.mention}")
         await interaction.response.send_message(f"Ta demande est créée : {channel.mention}", ephemeral=True)
 
@@ -327,6 +382,53 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
         await self.bot.db.update_request(req["id"], scheduled_for=quand)
         await self.log_action(interaction.guild, "Rendez-vous", f"#{req['id']} planifié : {quand} par {interaction.user.mention}")
         await interaction.response.send_message(f"Rendez-vous enregistré : **{quand}**.")
+
+    @app_commands.command(name="tickets_auditer", description="Détecter les demandes actives dont le salon a disparu")
+    @app_commands.describe(corriger="Annuler les demandes orphelines détectées")
+    async def tickets_auditer(self, interaction: discord.Interaction, corriger: bool = False) -> None:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            return
+        if not can(interaction.user, "training.manage"):
+            return await interaction.response.send_message("Accès refusé : `training.manage` requis.", ephemeral=True)
+
+        rows = await self.bot.db.active_requests_for_guild(interaction.guild.id)
+        orphans: list[tuple[object, str]] = []
+        for row in rows:
+            if not row["channel_id"]:
+                orphans.append((row, "aucun salon enregistré"))
+                continue
+            if interaction.guild.get_channel(row["channel_id"]) is None:
+                orphans.append((row, "salon introuvable"))
+
+        if not orphans:
+            return await interaction.response.send_message(
+                f"Audit terminé : **{len(rows)}** demande(s) active(s), aucun ticket orphelin.",
+                ephemeral=True,
+            )
+
+        corrected = 0
+        refunded = 0
+        if corriger:
+            for row, _reason in orphans:
+                safe_refund = not row["channel_id"] and bool(row["invite_used"]) and not row["trainer_id"] and int(row["progress"]) == 0
+                if await self.bot.db.cancel_orphan_request(row["id"]):
+                    corrected += 1
+                    if safe_refund:
+                        await self.bot.db.add_invite_credit(interaction.guild.id, row["user_id"], 1)
+                        refunded += 1
+            await self.log_action(
+                interaction.guild,
+                "Audit tickets",
+                f"{corrected} demande(s) orpheline(s) annulée(s), {refunded} crédit(s) recrédité(s) par {interaction.user.mention}",
+            )
+
+        lines = [f"• **#{row['id']}** <@{row['user_id']}> — {reason}" for row, reason in orphans[:15]]
+        suffix = "" if len(orphans) <= 15 else f"\n… et {len(orphans) - 15} autre(s)."
+        action = f"\n\n**Corrigées :** {corrected} • **Crédits recrédités :** {refunded}" if corriger else "\n\nRelance avec `corriger:True` pour annuler les demandes orphelines."
+        await interaction.response.send_message(
+            embed=embed("Audit intégrité des tickets", f"**Orphelins détectés : {len(orphans)}**\n" + "\n".join(lines) + suffix + action, 0xF1C40F),
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:
