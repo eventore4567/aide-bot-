@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -7,6 +9,9 @@ from discord.ext import commands, tasks
 from aidebot.cogs.member_experience import MemberHubView
 from aidebot.ops import MEMBER_HUB_MARKER, OPS_DASHBOARD_MARKER, format_operations
 from aidebot.permissions import can
+from aidebot.worker_resilience import run_isolated_batch
+
+log = logging.getLogger("aidebot.ops_dashboard")
 
 
 class OpsDashboardCog(commands.Cog):
@@ -30,8 +35,9 @@ class OpsDashboardCog(commands.Cog):
                     if item.footer and item.footer.text == marker:
                         return True, message
         except (discord.Forbidden, discord.HTTPException):
-            # Ne jamais créer un nouveau panneau si on ne peut pas vérifier
-            # qu'un ancien panneau existe déjà.
+            # Fail closed: never create another panel when history could not be
+            # inspected, otherwise a temporary permission/API failure can spam
+            # duplicate permanent panels.
             return False, None
         return True, None
 
@@ -92,19 +98,40 @@ class OpsDashboardCog(commands.Cog):
             return False
 
     async def refresh_guild(self, guild: discord.Guild) -> tuple[bool, bool]:
-        ops = await self.refresh_ops_dashboard(guild)
-        hub = await self.ensure_member_hub(guild)
+        # Keep both panels independent: a DB/Discord issue on the staff
+        # dashboard must not prevent the member hub from being reconciled.
+        ops = False
+        hub = False
+        try:
+            ops = await self.refresh_ops_dashboard(guild)
+        except Exception as exc:
+            log.exception("Échec dashboard opérations guild=%s", guild.id, exc_info=exc)
+        try:
+            hub = await self.ensure_member_hub(guild)
+        except Exception as exc:
+            log.exception("Échec centre membre guild=%s", guild.id, exc_info=exc)
         return ops, hub
+
+    async def _refresh_one(self, guild: discord.Guild) -> None:
+        await self.refresh_guild(guild)
+
+    async def _refresh_error(self, guild: discord.Guild, exc: Exception) -> None:
+        log.exception("Échec isolé de réconciliation des panneaux guild=%s", guild.id, exc_info=exc)
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        for guild in self.bot.guilds:
-            await self.refresh_guild(guild)
+        await run_isolated_batch(self.bot.guilds, self._refresh_one, self._refresh_error)
 
     @tasks.loop(minutes=5)
     async def refresh_dashboards(self) -> None:
-        for guild in self.bot.guilds:
-            await self.refresh_guild(guild)
+        # One guild must never be able to stop updates for every other guild or
+        # terminate this long-lived task.
+        try:
+            await run_isolated_batch(self.bot.guilds, self._refresh_one, self._refresh_error)
+        except Exception:
+            # Defensive outer boundary: keep the task alive even if an
+            # unexpected iterable/runtime problem happens outside one guild.
+            log.exception("Erreur inattendue du worker dashboards; prochaine itération conservée")
 
     @refresh_dashboards.before_loop
     async def before_refresh_dashboards(self) -> None:
