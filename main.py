@@ -24,6 +24,7 @@ EXTENSIONS = (
     "aidebot.cogs.health",
     "aidebot.cogs.admin",
     "aidebot.cogs.setup_server",
+    "aidebot.cogs.ops_dashboard",
 )
 
 
@@ -32,7 +33,12 @@ class AideBot(commands.Bot):
         intents = discord.Intents.default()
         intents.members = True
         intents.invites = True
-        super().__init__(command_prefix="!", intents=intents, help_command=None)
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            help_command=None,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
         self.settings = settings
         self.db = Database(settings.db_path)
 
@@ -66,6 +72,10 @@ async def main() -> None:
     async def on_ready() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
+        try:
+            await bot.change_presence(activity=discord.Game(name="Apprendre • /centre"))
+        except discord.HTTPException:
+            log.warning("Impossible de mettre à jour la présence Discord")
 
     @bot.tree.error
     async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
