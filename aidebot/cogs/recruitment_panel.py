@@ -236,8 +236,13 @@ class RejectApplicationModal(discord.ui.Modal, title="Refuser la candidature"):
                 )
             except discord.HTTPException:
                 pass
+        message = None
         channel = interaction.guild.get_channel(self.channel_id)
-        message = channel.get_partial_message(self.message_id) if isinstance(channel, discord.TextChannel) else None
+        if isinstance(channel, discord.TextChannel):
+            try:
+                message = await channel.fetch_message(self.message_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                message = None
         await _mark_reviewed(message, "refusée", interaction.user, str(self.reason))
         await interaction.response.send_message(f"Candidature **#{self.application_id} refusée**.", ephemeral=True)
 
@@ -306,8 +311,9 @@ class StaffApplicationReviewView(discord.ui.View):
         application_id = _application_id_from_message(interaction.message)
         if application_id is None:
             return await interaction.response.send_message("Impossible d’identifier cette candidature.", ephemeral=True)
+        channel_id = interaction.channel.id if interaction.channel is not None else 0
         await interaction.response.send_modal(
-            RejectApplicationModal(self.bot, application_id, interaction.channel_id, interaction.message.id)
+            RejectApplicationModal(self.bot, application_id, channel_id, interaction.message.id)
         )
 
 
