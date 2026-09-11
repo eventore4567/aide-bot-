@@ -16,6 +16,15 @@ PAYMENT_LABELS = {
     "refunded": "Remboursé",
 }
 
+# Transitions métier normales. On évite notamment de faire repasser silencieusement
+# un paiement déjà payé vers "refusé" ou "en attente".
+PAYMENT_TRANSITIONS: dict[str, tuple[str, ...]] = {
+    "pending": ("paid", "refused"),
+    "refused": ("pending", "paid"),
+    "paid": ("refunded",),
+    "refunded": ("pending",),
+}
+
 
 def normalize_payment_state(value: str) -> str | None:
     normalized = value.casefold().strip()
@@ -34,3 +43,27 @@ def normalize_payment_state(value: str) -> str | None:
         "refunded": "refunded",
     }
     return aliases.get(normalized)
+
+
+def can_transition_payment(current: str, target: str) -> bool:
+    if current == target:
+        return current in PAYMENT_STATES
+    return target in PAYMENT_TRANSITIONS.get(current, ())
+
+
+def request_status_after_payment(current_request_status: str, target_payment: str) -> str:
+    # Un remboursement ne doit jamais effacer une formation déjà terminée :
+    # le statut pédagogique et le statut financier sont deux dimensions différentes.
+    if current_request_status in {"completed", "closed"}:
+        return current_request_status
+    return REQUEST_STATUS_FOR_PAYMENT[target_payment]
+
+
+def payment_transition_error(current: str, target: str) -> str:
+    current_label = PAYMENT_LABELS.get(current, current)
+    target_label = PAYMENT_LABELS.get(target, target)
+    allowed = PAYMENT_TRANSITIONS.get(current, ())
+    if not allowed:
+        return f"Le paiement est actuellement **{current_label}** et aucune transition standard n’est disponible."
+    choices = ", ".join(PAYMENT_LABELS.get(item, item) for item in allowed)
+    return f"Transition **{current_label} → {target_label}** refusée. Depuis cet état, transitions autorisées : **{choices}**."

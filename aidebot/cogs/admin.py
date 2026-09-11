@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from aidebot.audit import dangerous_permissions, format_permission_names
 from aidebot.blueprint import ROLE_SPECS
+from aidebot.payments import PAYMENT_LABELS, payment_transition_error
 from aidebot.permissions import CAPABILITIES, can, decide
 
 
@@ -103,13 +104,27 @@ class AdminCog(commands.Cog):
         req = await self.bot.db.request_by_channel(interaction.channel.id)
         if not req:
             return await interaction.response.send_message("Utilise cette commande dans un ticket.", ephemeral=True)
-        if req["payment_status"] == "paid":
+        if req["payment_status"] == "not_required":
+            return await interaction.response.send_message("Ce ticket ne demande pas de paiement.", ephemeral=True)
+
+        changed, previous = await self.bot.db.transition_payment(req["id"], "paid")
+        if not changed:
+            if previous is None:
+                message = "Demande introuvable."
+            else:
+                message = payment_transition_error(previous, "paid")
+            return await interaction.response.send_message(message, ephemeral=True)
+        if previous == "paid":
             return await interaction.response.send_message("Ce paiement est déjà confirmé.", ephemeral=True)
-        await self.bot.db.update_request(req["id"], payment_status="paid", status="open")
+
         training = self.bot.get_cog("TrainingCog")
         if training:
-            await training.log_action(interaction.guild, "Paiement confirmé", f"#{req['id']} confirmé par {interaction.user.mention}")
-        await interaction.response.send_message("Paiement marqué **payé**. Le ticket peut maintenant être pris par un formateur.")
+            await training.log_action(
+                interaction.guild,
+                "Paiement confirmé",
+                f"#{req['id']} • {PAYMENT_LABELS.get(previous or '', previous or '?')} → **Payé** par {interaction.user.mention}",
+            )
+        await interaction.response.send_message("Paiement marqué **payé**. Le ticket peut maintenant être pris par un Formateur.")
 
     @app_commands.command(name="candidatures", description="Voir les candidatures Helper/Formateur en attente")
     async def candidatures(self, interaction: discord.Interaction) -> None:
