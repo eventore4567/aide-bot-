@@ -104,7 +104,7 @@ class OpsDashboardCog(commands.Cog):
     @tasks.loop(minutes=5)
     async def refresh_dashboards(self) -> None:
         for guild in self.bot.guilds:
-            await self.refresh_ops_dashboard(guild)
+            await self.refresh_guild(guild)
 
     @refresh_dashboards.before_loop
     async def before_refresh_dashboards(self) -> None:
