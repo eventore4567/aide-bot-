@@ -19,19 +19,28 @@ class AdminCog(commands.Cog):
         for capability in CAPABILITIES:
             d = decide(membre, capability)
             icon = "✅" if d.allowed else "❌"
-            lines.append(f"{icon} `{capability}` — {d.reason}")
-        await interaction.response.send_message(embed=discord.Embed(title=f"Permissions — {membre.display_name}", description="\n".join(lines), color=0x5865F2), ephemeral=True)
+            roles = ", ".join(d.allowed_roles) if d.allowed_roles else "aucun"
+            lines.append(f"{icon} `{capability}` — {d.reason}\nRôles : {roles}")
+        await interaction.response.send_message(
+            embed=discord.Embed(title=f"Permissions — {membre.display_name}", description="\n\n".join(lines), color=0x5865F2),
+            ephemeral=True,
+        )
 
     @app_commands.command(name="paiement_confirmer", description="Confirmer manuellement le paiement du ticket actuel")
     async def paiement_confirmer(self, interaction: discord.Interaction) -> None:
         if not isinstance(interaction.user, discord.Member) or not can(interaction.user, "payment.confirm"):
             return await interaction.response.send_message("Accès refusé : `payment.confirm` requis.", ephemeral=True)
-        if not interaction.channel:
+        if not interaction.channel or not interaction.guild:
             return
         req = await self.bot.db.request_by_channel(interaction.channel.id)
         if not req:
             return await interaction.response.send_message("Utilise cette commande dans un ticket.", ephemeral=True)
+        if req["payment_status"] == "paid":
+            return await interaction.response.send_message("Ce paiement est déjà confirmé.", ephemeral=True)
         await self.bot.db.update_request(req["id"], payment_status="paid", status="open")
+        training = self.bot.get_cog("TrainingCog")
+        if training:
+            await training.log_action(interaction.guild, "Paiement confirmé", f"#{req['id']} confirmé par {interaction.user.mention}")
         await interaction.response.send_message("Paiement marqué **payé**. Le ticket peut maintenant être pris par un formateur.")
 
     @app_commands.command(name="staff_stats", description="Voir les statistiques d’un Helper/Formateur")
@@ -40,8 +49,18 @@ class AdminCog(commands.Cog):
             return
         row = await self.bot.db.profile(interaction.guild.id, membre.id)
         avg = row["rating_sum"] / row["reviews_count"] if row["reviews_count"] else 0
-        desc = f"Réputation : **{row['reputation']}**\nAides : **{row['helped_count']}**\nFormations : **{row['trainings_completed']}**\nAvis : **{avg:.1f}/5** ({row['reviews_count']})"
-        await interaction.response.send_message(embed=discord.Embed(title=f"Stats staff — {membre.display_name}", description=desc, color=0x57F287), ephemeral=True)
+        desc = (
+            f"Réputation : **{row['reputation']}**\n"
+            f"Aides : **{row['helped_count']}**\n"
+            f"Formations : **{row['trainings_completed']}**\n"
+            f"Avis : **{avg:.1f}/5** ({row['reviews_count']})\n"
+            f"Disponible : **{'Oui' if row['helper_available'] else 'Non'}**\n"
+            f"Compétences : **{row['skills'] or 'Aucune'}**"
+        )
+        await interaction.response.send_message(
+            embed=discord.Embed(title=f"Stats staff — {membre.display_name}", description=desc, color=0x57F287),
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:
