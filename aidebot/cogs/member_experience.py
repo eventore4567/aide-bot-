@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from aidebot.catalog import FORMATIONS, INVITE_REWARDS
+from aidebot.lessons import LESSON_PATHS, path_size
 from aidebot.member_experience import invite_progress, progress_bar, recommend_next_action
 from aidebot.progression import community_level, profile_badges
 
@@ -21,10 +22,38 @@ def _catalogue_text(price_robux: int) -> str:
     return "\n\n".join(lines)[:3900]
 
 
+async def _learning_overview(bot: commands.Bot, guild: discord.Guild, user_id: int) -> tuple[int, int, str]:
+    rows = await bot.db.learning_progress(guild.id, user_id)
+    by_key = {row["path_key"]: row for row in rows}
+    validated = 0
+    next_action: str | None = None
+
+    for key, data in LESSON_PATHS.items():
+        total = path_size(key)
+        row = by_key.get(key)
+        if row is None:
+            if next_action is None:
+                next_action = f"Commence **{data['title']}** avec `/apprendre lecon sujet:{key} numero:1`."
+            continue
+        seen = min(int(row["max_lesson"]), total)
+        correct = int(row["quiz_correct"])
+        if seen >= total and correct > 0:
+            validated += 1
+        elif next_action is None and seen < total:
+            next_action = f"Reprends **{data['title']}** à la leçon **{seen + 1}/{total}** avec `/apprendre reprendre`."
+        elif next_action is None:
+            next_action = f"Valide **{data['title']}** avec `/apprendre quiz sujet:{key}`."
+
+    if next_action is None:
+        next_action = "Tous les mini-parcours sont validés. Passe aux `/challenge liste` ou à une formation complète."
+    return validated, len(LESSON_PATHS), next_action
+
+
 async def _profile_embed(bot: commands.Bot, guild: discord.Guild, member: discord.Member) -> discord.Embed:
     row = await bot.db.profile(guild.id, member.id)
     student_completed = await bot.db.student_training_count(guild.id, member.id)
     trainer_completed = int(row["trainings_completed"])
+    free_validated, free_total, free_next = await _learning_overview(bot, guild, member.id)
     average = row["rating_sum"] / row["reviews_count"] if row["reviews_count"] else 0
     badges = profile_badges(
         reputation=row["reputation"],
@@ -35,6 +64,8 @@ async def _profile_embed(bot: commands.Bot, guild: discord.Guild, member: discor
     )
     if student_completed > 0:
         badges = ["✅ Apprenant certifié", *badges]
+    if free_validated == free_total and free_total > 0:
+        badges = ["📚 Parcours gratuits validés", *badges]
     title, advice = recommend_next_action(
         credits=await bot.db.invite_credits(guild.id, member.id),
         reputation=row["reputation"],
@@ -46,12 +77,14 @@ async def _profile_embed(bot: commands.Bot, guild: discord.Guild, member: discor
         f"**Niveau :** {community_level(row['reputation'])}\n"
         f"**Réputation :** {row['reputation']}\n"
         f"**Aides terminées :** {row['helped_count']}\n"
+        f"**Parcours gratuits validés :** {free_validated}/{free_total}\n"
         f"**Formations suivies :** {student_completed}\n"
         f"**Formations données :** {trainer_completed}\n"
         f"**Note comme aidant/formateur :** {average:.1f}/5 ({row['reviews_count']} avis)\n"
         f"**Compétences :** {row['skills'] or 'Aucune renseignée'}\n"
         f"**Badges :** {' • '.join(badges)}\n\n"
-        f"**Prochaine étape — {title}**\n{advice}"
+        f"**Apprentissage gratuit**\n{free_next}\n\n"
+        f"**Prochaine étape communauté — {title}**\n{advice}"
     )
     return discord.Embed(title=f"Mon espace — {member.display_name}", description=description, color=0x3498DB)
 
@@ -79,8 +112,9 @@ class MemberHubView(discord.ui.View):
                 title="Obtenir de l’aide",
                 description=(
                     "**1.** Essaie `/chercher question:...` pour une réponse immédiate.\n"
-                    "**2.** Si ça ne suffit pas, utilise `/aide demander question:...`.\n"
-                    "**3.** Pour un parcours complet, choisis une formation dans `#🎓・formations`.\n\n"
+                    "**2.** Essaie `/apprendre reprendre` si tu veux apprendre gratuitement étape par étape.\n"
+                    "**3.** Si ça ne suffit pas, utilise `/aide demander question:...`.\n"
+                    "**4.** Pour un parcours complet avec accompagnement, choisis une formation dans `#🎓・formations`.\n\n"
                     "Ne partage jamais de token, mot de passe ou code de récupération."
                 ),
                 color=0x57F287,
@@ -135,6 +169,26 @@ class MemberHubView(discord.ui.View):
             ephemeral=True,
         )
 
+    @discord.ui.button(label="Apprendre gratuitement", style=discord.ButtonStyle.primary, custom_id="aidebot:hub:learn", row=1)
+    async def learn_free(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if not interaction.guild:
+            return
+        validated, total, next_action = await _learning_overview(self.bot, interaction.guild, interaction.user.id)
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="Apprentissage gratuit",
+                description=(
+                    f"**Parcours validés : {validated}/{total}**\n\n"
+                    f"{next_action}\n\n"
+                    "`/apprendre parcours` — voir tous les parcours\n"
+                    "`/apprendre progression` — voir ton avancement\n"
+                    "`/apprendre reprendre` — continuer automatiquement"
+                ),
+                color=0x5865F2,
+            ),
+            ephemeral=True,
+        )
+
 
 class MemberExperienceCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -158,7 +212,11 @@ class MemberExperienceCog(commands.Cog):
         await interaction.response.send_message(
             embed=discord.Embed(
                 title="Aide Bot — Centre membre",
-                description="Apprendre, demander de l’aide, suivre ta progression, débloquer des récompenses ou commencer à aider les autres.",
+                description=(
+                    "Apprends gratuitement à ton rythme, demande de l’aide seulement quand tu en as besoin, "
+                    "suis tes formations, débloque des récompenses et aide ensuite les autres.\n\n"
+                    "Pour reprendre immédiatement ton apprentissage : `/apprendre reprendre`."
+                ),
                 color=0x5865F2,
             ),
             view=MemberHubView(self.bot),
