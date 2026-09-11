@@ -7,6 +7,7 @@ ROLE_SPECS = [
     ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True, moderate_members=True)),
     ("🎓・Formateur", 0x5865F2, dict()),
     ("🤝・Helper", 0x57F287, dict()),
+    ("🌟・Ambassadeur", 0xFEE75C, dict()),
     ("✅・Apprenant certifié", 0x3498DB, dict()),
     ("💎・VIP", 0xEB459E, dict()),
     ("🛡️・Expert Sécurité", 0xE74C3C, dict()),
