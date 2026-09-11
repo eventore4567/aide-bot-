@@ -47,8 +47,16 @@ def normalize_payment_state(value: str) -> str | None:
 
 def can_transition_payment(current: str, target: str) -> bool:
     if current == target:
-        return True
+        return current in PAYMENT_STATES
     return target in PAYMENT_TRANSITIONS.get(current, ())
+
+
+def request_status_after_payment(current_request_status: str, target_payment: str) -> str:
+    # Un remboursement ne doit jamais effacer une formation déjà terminée :
+    # le statut pédagogique et le statut financier sont deux dimensions différentes.
+    if current_request_status in {"completed", "closed"}:
+        return current_request_status
+    return REQUEST_STATUS_FOR_PAYMENT[target_payment]
 
 
 def payment_transition_error(current: str, target: str) -> str:
