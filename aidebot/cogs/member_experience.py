@@ -166,7 +166,7 @@ class MemberExperienceCog(commands.Cog):
         data = FORMATIONS.get(key)
         if not data:
             return await interaction.response.send_message(
-                "Parcours inconnnu. Clés disponibles : " + ", ".join(f"`{name}`" for name in FORMATIONS),
+                "Parcours inconnu. Clés disponibles : " + ", ".join(f"`{name}`" for name in FORMATIONS),
                 ephemeral=True,
             )
         access = f"{self.bot.settings.vip_price_robux} Robux • confirmation staff" if data["vip"] else "1 invitation valide"
@@ -201,6 +201,30 @@ class MemberExperienceCog(commands.Cog):
             f"Crédits disponibles : **{credits}** • Invitations validées : **{total}**\n{detail}",
             ephemeral=True,
         )
+
+    @app_commands.command(name="certificat", description="Afficher ton certificat Aide Bot si tu as terminé une formation")
+    async def certificat(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            return
+        row = await self.bot.db.profile(interaction.guild.id, interaction.user.id)
+        completed = int(row["trainings_completed"])
+        if completed <= 0:
+            return await interaction.response.send_message(
+                "Tu dois terminer au moins une formation avant d’obtenir ton certificat Aide Bot.",
+                ephemeral=True,
+            )
+        e = discord.Embed(
+            title="Certificat de progression — Aide Bot",
+            description=(
+                f"**{interaction.user.display_name}** a terminé **{completed} formation(s)** sur Aide Bot.\n\n"
+                f"Niveau communauté : **{community_level(row['reputation'])}**\n"
+                f"Réputation : **{row['reputation']}**\n\n"
+                "Ce certificat représente la progression enregistrée sur la communauté Aide Bot et ne constitue pas un diplôme officiel."
+            ),
+            color=0x3498DB,
+        )
+        e.set_footer(text=f"Membre Discord : {interaction.user.id}")
+        await interaction.response.send_message(embed=e)
 
 
 async def setup(bot: commands.Bot) -> None:
