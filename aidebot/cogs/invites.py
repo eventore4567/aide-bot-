@@ -61,6 +61,20 @@ class InvitesCog(commands.Cog):
         await self.bot.db.add_pending_invite(member.guild.id, used.inviter.id, member.id, validate_after)
         await self._log(member.guild, "Invitation en validation", f"{member.mention} semble avoir été invité par {used.inviter.mention}. Validation dans {hours}h s'il reste sur le serveur.")
 
+    async def _award_invite_roles(self, guild: discord.Guild, inviter_id: int) -> None:
+        total = await self.bot.db.validated_invites(guild.id, inviter_id)
+        inviter = guild.get_member(inviter_id)
+        if not inviter:
+            return
+        if total >= 10:
+            role = discord.utils.get(guild.roles, name="🌟・Ambassadeur")
+            if role and role not in inviter.roles:
+                try:
+                    await inviter.add_roles(role, reason="10 invitations validées sur Aide Bot")
+                    await self._log(guild, "Rôle Ambassadeur débloqué", f"{inviter.mention} atteint **{total} invitations validées**.")
+                except discord.Forbidden:
+                    await self._log(guild, "Ambassadeur non attribué", f"Impossible d'attribuer {role.mention} à {inviter.mention}. Vérifie la hiérarchie du bot.")
+
     @tasks.loop(minutes=10)
     async def validate_pending(self) -> None:
         due = await self.bot.db.due_pending_invites(int(time.time()))
@@ -70,11 +84,15 @@ class InvitesCog(commands.Cog):
             valid = bool(member and not member.bot)
             if valid:
                 await self.bot.db.add_invite_credit(row["guild_id"], row["inviter_id"], 1)
+                await self.bot.db.finish_pending_invite(row["id"], True)
                 if guild:
-                    await self._log(guild, "Invitation validée", f"<@{row['inviter_id']}> gagne **1 crédit formation** grâce à <@{row['invitee_id']}>.")
-            elif guild:
-                await self._log(guild, "Invitation refusée", f"L'invitation liée à <@{row['invitee_id']}> n'a pas été validée : le membre n'est plus présent.")
-            await self.bot.db.finish_pending_invite(row["id"], valid)
+                    total = await self.bot.db.validated_invites(guild.id, row["inviter_id"])
+                    await self._log(guild, "Invitation validée", f"<@{row['inviter_id']}> gagne **1 crédit formation** grâce à <@{row['invitee_id']}>. Total validé : **{total}**.")
+                    await self._award_invite_roles(guild, row["inviter_id"])
+            else:
+                await self.bot.db.finish_pending_invite(row["id"], False)
+                if guild:
+                    await self._log(guild, "Invitation refusée", f"L'invitation liée à <@{row['invitee_id']}> n'a pas été validée : le membre n'est plus présent.")
 
     @validate_pending.before_loop
     async def before_validate(self) -> None:
@@ -85,7 +103,8 @@ class InvitesCog(commands.Cog):
         if not interaction.guild:
             return
         credits = await self.bot.db.invite_credits(interaction.guild.id, interaction.user.id)
-        await interaction.response.send_message(f"Tu as **{credits} invitation(s) valide(s)** disponible(s).", ephemeral=True)
+        total = await self.bot.db.validated_invites(interaction.guild.id, interaction.user.id)
+        await interaction.response.send_message(f"Tu as **{credits} crédit(s)** disponible(s) et **{total} invitation(s)** validée(s) au total. Utilise `/bonus_invites` pour voir les paliers.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
