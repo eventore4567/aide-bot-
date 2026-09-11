@@ -123,3 +123,38 @@ def test_application_states_match_database_workflow():
             await db.close()
 
     asyncio.run(run())
+
+
+def test_reminder_processing_is_warning_but_unknown_state_blocks_preflight():
+    async def run():
+        db = AideBotDatabase(":memory:")
+        await db.connect()
+        try:
+            await db._db().execute(
+                """INSERT INTO reminders(
+                       guild_id,request_id,channel_id,user_id,trainer_id,remind_at,state,created_at
+                   ) VALUES (1,1,100,10,NULL,1,'processing',1)"""
+            )
+            await db._db().commit()
+            counts = await database_integrity_counts(db._db())
+            assert counts["processing_reminders"] == 1
+            assert counts["invalid_reminder_states"] == 0
+            summary = summarize_preflight(hard_blockers=0, integrity_counts=counts)
+            assert summary.ready is True
+            assert summary.warning_count == 1
+
+            await db._db().execute(
+                """INSERT INTO reminders(
+                       guild_id,request_id,channel_id,user_id,trainer_id,remind_at,state,created_at
+                   ) VALUES (1,2,101,11,NULL,1,'mystery',1)"""
+            )
+            await db._db().commit()
+            counts = await database_integrity_counts(db._db())
+            assert counts["invalid_reminder_states"] == 1
+            summary = summarize_preflight(hard_blockers=0, integrity_counts=counts)
+            assert summary.ready is False
+            assert summary.blocking_count == 1
+        finally:
+            await db.close()
+
+    asyncio.run(run())
