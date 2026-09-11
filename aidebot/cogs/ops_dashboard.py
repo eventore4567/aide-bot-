@@ -19,21 +19,21 @@ class OpsDashboardCog(commands.Cog):
     async def cog_unload(self) -> None:
         self.refresh_dashboards.cancel()
 
-    async def _find_bot_message(self, channel: discord.TextChannel, marker: str) -> discord.Message | None:
+    async def _find_bot_message(self, channel: discord.TextChannel, marker: str) -> tuple[bool, discord.Message | None]:
         if not self.bot.user:
-            return None
+            return False, None
         try:
             async for message in channel.history(limit=50):
                 if message.author.id != self.bot.user.id:
                     continue
                 for item in message.embeds:
                     if item.footer and item.footer.text == marker:
-                        return message
+                        return True, message
         except (discord.Forbidden, discord.HTTPException):
-            # Ne pas poster aveuglément si on ne peut pas vérifier l'existant :
-            # cela éviterait des panneaux dupliqués à chaque reconnexion.
-            return None
-        return None
+            # Ne jamais créer un nouveau panneau si on ne peut pas vérifier
+            # qu'un ancien panneau existe déjà.
+            return False, None
+        return True, None
 
     async def refresh_ops_dashboard(self, guild: discord.Guild, *, allow_create: bool = True) -> bool:
         channel = discord.utils.get(guild.text_channels, name="🧠・suivi-formations")
@@ -48,7 +48,7 @@ class OpsDashboardCog(commands.Cog):
         )
         embed.set_footer(text=OPS_DASHBOARD_MARKER)
 
-        existing = await self._find_bot_message(channel, OPS_DASHBOARD_MARKER)
+        history_checked, existing = await self._find_bot_message(channel, OPS_DASHBOARD_MARKER)
         if existing:
             try:
                 await existing.edit(embed=embed)
@@ -56,7 +56,7 @@ class OpsDashboardCog(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 return False
 
-        if not allow_create:
+        if not history_checked or not allow_create:
             return False
         try:
             await channel.send(embed=embed)
@@ -69,10 +69,10 @@ class OpsDashboardCog(commands.Cog):
         if channel is None:
             return False
 
-        existing = await self._find_bot_message(channel, MEMBER_HUB_MARKER)
+        history_checked, existing = await self._find_bot_message(channel, MEMBER_HUB_MARKER)
         if existing:
             return True
-        if not allow_create:
+        if not history_checked or not allow_create:
             return False
 
         embed = discord.Embed(
