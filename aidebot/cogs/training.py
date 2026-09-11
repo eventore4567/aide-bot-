@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from aidebot.catalog import FORMATIONS
 from aidebot.permissions import can, decide
+from aidebot.request_integrity import cancel_request_atomic, create_request_with_entitlement_atomic
 from aidebot.ticketing import format_guidance
 
 
@@ -192,11 +193,7 @@ class TrainingRequestModal(discord.ui.Modal):
             )
 
         data = FORMATIONS[self.training_key]
-        invite_used = False
-        if not data["vip"] and not can(interaction.user, "training.claim"):
-            invite_used = await self.cog.bot.db.consume_invite_credit(interaction.guild.id, interaction.user.id)
-            if not invite_used:
-                return await interaction.response.send_message("La formation classique demande **1 invitation valide**. Ton solde est insuffisant.", ephemeral=True)
+        requires_invite = not data["vip"] and not can(interaction.user, "training.claim")
         status = "payment_pending" if data["vip"] else "open"
         payment = "pending" if data["vip"] else "not_required"
         await self.cog.create_request_channel(
@@ -208,7 +205,7 @@ class TrainingRequestModal(discord.ui.Modal):
             budget=str(self.budget),
             status=status,
             payment_status=payment,
-            invite_used=invite_used,
+            requires_invite=requires_invite,
         )
 
 
@@ -251,37 +248,54 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
             except discord.HTTPException:
                 pass
 
-    async def _rollback_creation(self, guild: discord.Guild, request_id: int, invite_used: bool, channel: discord.TextChannel | None = None) -> None:
-        if channel is None:
-            await self.bot.db.cancel_request_creation(request_id)
-        else:
-            await self.bot.db.cancel_orphan_request(request_id)
+    async def _rollback_creation(
+        self,
+        guild: discord.Guild,
+        request_id: int,
+        invite_used: bool,
+        channel: discord.TextChannel | None = None,
+    ) -> bool:
+        result = await cancel_request_atomic(self.bot.db, request_id, refund_invite=invite_used)
+        if channel is not None:
             try:
                 await channel.delete(reason="Rollback création ticket Aide Bot")
             except discord.HTTPException:
                 pass
-        if invite_used:
-            await self.bot.db.add_invite_credit(guild.id, (await self.bot.db.request_by_id(request_id))["user_id"], 1)
+        return result.refunded_invite
 
     async def create_request_channel(self, interaction: discord.Interaction, training_key: str, **fields) -> None:
         guild = interaction.guild
         assert guild is not None and isinstance(interaction.user, discord.Member)
+        requires_invite = bool(fields.pop("requires_invite", False))
+        # Legacy callers may still pass this field; entitlement is now derived
+        # and consumed inside the atomic creation transaction instead.
+        fields.pop("invite_used", None)
+
         services = discord.utils.get(guild.categories, name="━━ SERVICES ━━")
         if not services:
-            if fields.get("invite_used"):
-                await self.bot.db.add_invite_credit(guild.id, interaction.user.id, 1)
             return await interaction.response.send_message("Le serveur n’est pas encore configuré. Lance `/setup`.", ephemeral=True)
 
-        request_id, existing = await self.bot.db.create_request_guarded(
+        creation = await create_request_with_entitlement_atomic(
+            self.bot.db,
+            requires_invite=requires_invite,
             guild_id=guild.id,
             user_id=interaction.user.id,
             training_key=training_key,
             total_steps=len(FORMATIONS[training_key]["steps"]) if training_key in FORMATIONS else 1,
-            **fields,
+            level=str(fields.get("level", "")),
+            objective=str(fields.get("objective", "")),
+            availability=str(fields.get("availability", "")),
+            budget=str(fields.get("budget", "")),
+            status=str(fields.get("status", "open")),
+            payment_status=str(fields.get("payment_status", "not_required")),
         )
-        if request_id is None:
-            if fields.get("invite_used"):
-                await self.bot.db.add_invite_credit(guild.id, interaction.user.id, 1)
+        if creation.reason == "insufficient_credit":
+            return await interaction.response.send_message(
+                "La formation classique demande **1 invitation valide**. Ton solde est insuffisant.",
+                ephemeral=True,
+            )
+        if creation.request_id is None:
+            existing = creation.existing
             channel = guild.get_channel(existing["channel_id"]) if existing and existing["channel_id"] else None
             destination = channel.mention if isinstance(channel, discord.TextChannel) else f"demande #{existing['id']}" if existing else "une demande existante"
             return await interaction.response.send_message(
@@ -289,6 +303,8 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
                 ephemeral=True,
             )
 
+        request_id = creation.request_id
+        invite_used = creation.invite_used
         staff_roles = [r for r in guild.roles if r.name in {"👑・Direction", "📘・Responsable Formation", "🎓・Formateur"}]
         if training_key == "community_help":
             helper = discord.utils.get(guild.roles, name="🤝・Helper")
@@ -311,13 +327,18 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
                 reason="Nouvelle demande Aide Bot",
             )
         except (discord.Forbidden, discord.HTTPException):
-            await self._rollback_creation(guild, request_id, bool(fields.get("invite_used")))
+            refunded = await self._rollback_creation(guild, request_id, invite_used)
             return await interaction.response.send_message(
-                "Impossible de créer le ticket. La demande a été annulée proprement" + (" et ton invitation a été recréditée." if fields.get("invite_used") else "."),
+                "Impossible de créer le ticket. La demande a été annulée proprement" + (" et ton invitation a été recréditée." if refunded else "."),
                 ephemeral=True,
             )
 
-        await self.bot.db.set_request_channel(request_id, channel.id)
+        try:
+            await self.bot.db.set_request_channel(request_id, channel.id)
+        except Exception:
+            await self._rollback_creation(guild, request_id, invite_used, channel)
+            raise
+
         title = FORMATIONS.get(training_key, {"title": "Aide communautaire"})["title"]
         desc = (
             f"Demande **#{request_id}** de {interaction.user.mention}\n"
@@ -334,9 +355,9 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
             if guidance:
                 await channel.send(embed=embed("Ressource de départ", guidance, 0x3498DB))
         except (discord.Forbidden, discord.HTTPException):
-            await self._rollback_creation(guild, request_id, bool(fields.get("invite_used")), channel)
+            refunded = await self._rollback_creation(guild, request_id, invite_used, channel)
             return await interaction.response.send_message(
-                "Le ticket n’a pas pu être initialisé correctement. La création a été annulée" + (" et ton invitation a été recréditée." if fields.get("invite_used") else "."),
+                "Le ticket n’a pas pu être initialisé correctement. La création a été annulée" + (" et ton invitation a été recréditée." if refunded else "."),
                 ephemeral=True,
             )
 
@@ -411,10 +432,10 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
         if corriger:
             for row, _reason in orphans:
                 safe_refund = not row["channel_id"] and bool(row["invite_used"]) and not row["trainer_id"] and int(row["progress"]) == 0
-                if await self.bot.db.cancel_orphan_request(row["id"]):
+                result = await cancel_request_atomic(self.bot.db, row["id"], refund_invite=safe_refund)
+                if result.changed:
                     corrected += 1
-                    if safe_refund:
-                        await self.bot.db.add_invite_credit(interaction.guild.id, row["user_id"], 1)
+                    if result.refunded_invite:
                         refunded += 1
             await self.log_action(
                 interaction.guild,
