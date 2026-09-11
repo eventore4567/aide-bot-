@@ -9,9 +9,10 @@ from aidebot.experience_content import (
     FREE_DESCRIPTION,
     GUIDES,
     PREMIUM_DESCRIPTION,
-    VIDEO_LIBRARY,
 )
+from aidebot.video_catalog import VIDEO_LIBRARY
 from aidebot.cogs.training import TrainingRequestModal
+from aidebot.premium_access import has_premium, missing_premium_message
 
 
 COLOR = 0x5865F2
@@ -25,7 +26,7 @@ def center_embed(vip_price: int) -> discord.Embed:
         description=(
             "**Bienvenue sur Aide Bot.** Ici, tu n’as pas besoin de connaître 30 commandes pour commencer. "
             "Choisis ce que tu veux faire avec les boutons ci-dessous et le bot te guide étape par étape.\n\n"
-            "Aide Bot est pensé comme un vrai service : explications complètes, exemples, vidéos, guides, quiz, "
+            "Aide Bot est pensé comme un vrai service : explications complètes, exemples, vidéos, guides, "
             "tickets suivis et accompagnement humain quand tu en as besoin."
         ),
         color=COLOR,
@@ -39,11 +40,10 @@ def center_embed(vip_price: int) -> discord.Embed:
         inline=False,
     )
     e.add_field(
-        name="PREMIUM — être accompagné personnellement",
+        name="PREMIUM — espace réservé aux abonnés",
         value=(
-            f"À partir de la formule configurée à **{vip_price} Robux** : diagnostic, plan sur mesure, ticket privé, "
-            "Formateur dédié, rendez-vous, audit, exercices, corrections et vérification finale. Le paiement est toujours "
-            "confirmé manuellement avant la prise en charge."
+            f"L’abonnement est actuellement configuré à **{vip_price} Robux**. Il s’achète uniquement depuis `🛒・shop` ou `/buy`. "
+            "Après validation du paiement, le rôle **💎・VIP** est attribué et débloque les parcours Premium, audits et accompagnements personnalisés."
         ),
         inline=False,
     )
@@ -95,38 +95,37 @@ def guide_embed(key: str) -> discord.Embed:
 
 def premium_embed(vip_price: int) -> discord.Embed:
     e = discord.Embed(
-        title="Aide Bot Premium — accompagnement personnalisé",
+        title="Aide Bot Premium — espace abonné",
         description=PREMIUM_DESCRIPTION,
         color=PREMIUM,
     )
     e.add_field(
-        name="Ce que tu achètes vraiment",
+        name="Ce que ton abonnement débloque",
         value=(
             "• Diagnostic de ton besoin et de ton niveau\n"
             "• Plan de travail adapté à ton objectif\n"
             "• Ticket privé avec un Formateur assigné\n"
             "• Rendez-vous / suivi selon la formule\n"
-            "• Explications détaillées et corrections\n"
-            "• Audit serveur, bot ou sécurité si nécessaire\n"
-            "• Exercices pratiques et vérification finale\n"
+            "• Audits serveur, bot ou sécurité\n"
+            "• Parcours Premium et extensions avancées\n"
+            "• Exercices, corrections et vérification finale\n"
             "• Ressources de fin pour pouvoir refaire seul"
         ),
         inline=False,
     )
     e.add_field(
-        name="Paiement et sécurité",
+        name="Comment obtenir l’accès",
         value=(
-            f"La formule principale est actuellement configurée à **{vip_price} Robux**. Une demande Premium commence en "
-            "attente de paiement. Seule la Direction peut confirmer le paiement dans le bot. Tant que le paiement n’est "
-            "pas confirmé, aucun Formateur ne peut prendre la demande."
+            f"L’abonnement principal est configuré à **{vip_price} Robux**. L’achat se fait **uniquement** dans `🛒・shop` ou avec `/buy`. "
+            "Un ticket d’activation est créé ; après validation du paiement par la Direction, le rôle **💎・VIP** est ajouté automatiquement."
         ),
         inline=False,
     )
     e.add_field(
-        name="Le gratuit reste utile",
+        name="Important",
         value=(
-            "Tu n’es jamais obligé de payer pour comprendre les bases. Le Premium est destiné aux personnes qui veulent "
-            "gagner du temps, obtenir un diagnostic personnel ou être accompagnées sur un projet réel."
+            "Le bouton Premium n’est pas un bouton d’achat. Il sert à utiliser un abonnement déjà actif. "
+            "Sans rôle VIP, le bot affiche **Abonnement Premium manquant** et te renvoie vers la boutique."
         ),
         inline=False,
     )
@@ -138,13 +137,14 @@ def videos_embed() -> discord.Embed:
     lines = []
     for video in VIDEO_LIBRARY.values():
         lines.append(f"**{video['title']}**\n{video['note']}")
+    description = (
+        "La bibliothèque contient maintenant plusieurs supports : serveur, permissions, bots, slash commands, webhooks/embeds, "
+        "Railway, tickets, sécurité/anti-raid et Git/GitHub. Les vidéos servent à voir les manipulations ; les guides Aide Bot expliquent le pourquoi.\n\n"
+        + "\n\n".join(lines)
+    )
     e = discord.Embed(
         title="Bibliothèque vidéo — supports visuels",
-        description=(
-            "Les vidéos complètent les explications Aide Bot. Elles servent surtout à voir les écrans et les manipulations. "
-            "Les guides du bot restent la référence pour les règles de sécurité, les bonnes pratiques et les étapes à vérifier.\n\n"
-            + "\n\n".join(lines)
-        ),
+        description=description[:4000],
         color=0xE67E22,
     )
     e.set_image(url=BANNER_URL)
@@ -254,8 +254,10 @@ class PremiumView(discord.ui.View):
         super().__init__(timeout=900)
         self.cog = cog
 
-    @discord.ui.button(label="Demander un accompagnement Premium", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Ouvrir mon accompagnement Premium", style=discord.ButtonStyle.success)
     async def request(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if not isinstance(interaction.user, discord.Member) or not has_premium(interaction.user):
+            return await interaction.response.send_message(missing_premium_message(), ephemeral=True)
         training = self.cog.bot.get_cog("TrainingCog")
         if training is None:
             return await interaction.response.send_message("Module de formations indisponible.", ephemeral=True)
@@ -277,6 +279,8 @@ class CenterView(discord.ui.View):
 
     @discord.ui.button(label="Premium", style=discord.ButtonStyle.secondary, custom_id="aidebot:center:premium")
     async def premium(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if not isinstance(interaction.user, discord.Member) or not has_premium(interaction.user):
+            return await interaction.response.send_message(missing_premium_message(), ephemeral=True)
         await interaction.response.send_message(
             embed=premium_embed(self.cog.bot.settings.vip_price_robux),
             view=PremiumView(self.cog),
