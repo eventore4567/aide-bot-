@@ -54,10 +54,22 @@ def test_trainer_counter_does_not_change_student_training_count(tmp_path):
         db = AideBotDatabase(str(tmp_path / "aidebot-test.db"))
         await db.connect()
         try:
-            await db.complete_for_trainer(1, 99, community_help=False)
+            request_id = await db.create_request(
+                guild_id=1,
+                user_id=10,
+                training_key="discord",
+                total_steps=2,
+                status="open",
+                payment_status="not_required",
+                invite_used=False,
+            )
+            await db.update_request(request_id, trainer_id=99, status="assigned")
+            assert await db.complete_request_once(request_id) is not None
+
             trainer = await db.profile(1, 99)
             assert trainer["trainings_completed"] == 1
             assert await db.student_training_count(1, 99) == 0
+            assert await db.student_training_count(1, 10) == 1
         finally:
             await db.close()
 
