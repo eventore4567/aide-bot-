@@ -174,14 +174,54 @@ class AdminCog(commands.Cog):
                     "Le bot ne peut pas attribuer ce rôle. Vérifie sa hiérarchie Discord.",
                     ephemeral=True,
                 )
-            try:
-                await member.add_roles(role, reason=f"Candidature Aide Bot #{id} acceptée")
-            except discord.Forbidden:
-                return await interaction.response.send_message("Discord refuse l'attribution du rôle. Vérifie les permissions du bot.", ephemeral=True)
 
-        changed = await self.bot.db.resolve_application(id, interaction.user.id, accepte, raison)
-        if not changed:
-            return await interaction.response.send_message("La candidature a été traitée entre-temps.", ephemeral=True)
+            claimed = await self.bot.db.begin_application_acceptance(
+                id,
+                interaction.guild.id,
+                interaction.user.id,
+                raison,
+            )
+            if claimed is None:
+                return await interaction.response.send_message("La candidature a été traitée entre-temps.", ephemeral=True)
+            row = claimed
+            had_role = role in member.roles
+            try:
+                if not had_role:
+                    await member.add_roles(role, reason=f"Candidature Aide Bot #{id} acceptée")
+            except (discord.Forbidden, discord.HTTPException):
+                await self.bot.db.release_application_acceptance(id, interaction.guild.id)
+                return await interaction.response.send_message(
+                    "Discord refuse l'attribution du rôle. La candidature reste en attente : vérifie les permissions et la hiérarchie du bot.",
+                    ephemeral=True,
+                )
+
+            try:
+                finalized = await self.bot.db.finish_application_acceptance(id, interaction.guild.id)
+            except Exception:
+                if not had_role:
+                    try:
+                        await member.remove_roles(role, reason=f"Rollback candidature Aide Bot #{id}")
+                    except discord.HTTPException:
+                        pass
+                await self.bot.db.release_application_acceptance(id, interaction.guild.id)
+                raise
+
+            if not finalized:
+                if not had_role:
+                    try:
+                        await member.remove_roles(role, reason=f"Rollback candidature Aide Bot #{id}")
+                    except discord.HTTPException:
+                        pass
+                await self.bot.db.release_application_acceptance(id, interaction.guild.id)
+                return await interaction.response.send_message(
+                    "La candidature n'a pas pu être finalisée. Le rôle ajouté par cette tentative a été annulé.",
+                    ephemeral=True,
+                )
+            changed = True
+        else:
+            changed = await self.bot.db.resolve_application(id, interaction.user.id, False, raison)
+            if not changed:
+                return await interaction.response.send_message("La candidature a été traitée entre-temps.", ephemeral=True)
 
         verdict = "acceptée" if accepte else "refusée"
         role_label = "Formateur" if row["target_role"] == "trainer" else "Helper"
