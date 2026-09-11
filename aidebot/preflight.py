@@ -124,7 +124,7 @@ async def database_integrity_counts(conn: Any) -> dict[str, int]:
         "invalid_applications": """
             SELECT COUNT(*) FROM applications
             WHERE target_role NOT IN ('helper','trainer')
-               OR status NOT IN ('pending','accepted','refused')
+               OR status NOT IN ('pending','accepted','rejected')
         """,
         "invalid_learning_progress": """
             SELECT COUNT(*) FROM learning_progress
