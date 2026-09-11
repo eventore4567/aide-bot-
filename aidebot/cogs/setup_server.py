@@ -7,6 +7,7 @@ from discord.ext import commands
 from aidebot.blueprint import CATEGORY_SPECS, ROLE_SPECS, role_permissions
 from aidebot.catalog import CHALLENGES, FORMATIONS, INVITE_REWARDS
 from aidebot.message_reconcile import find_bot_embed_by_title, upsert_bot_embed_by_title
+from aidebot.setup_guard import canonical_collisions, format_collisions
 
 
 class SetupServerCog(commands.Cog):
@@ -88,6 +89,19 @@ class SetupServerCog(commands.Cog):
         if missing:
             return await interaction.response.send_message(
                 "Le setup est bloqué avant toute modification. Permissions manquantes pour Aide Bot : **" + ", ".join(missing) + "**.",
+                ephemeral=True,
+            )
+
+        collisions = canonical_collisions(
+            role_names=(role.name for role in guild.roles),
+            category_names=(category.name for category in guild.categories),
+            channel_names=(channel.name for channel in guild.text_channels),
+        )
+        if collisions:
+            return await interaction.response.send_message(
+                "Le setup est bloqué **avant toute modification** car plusieurs objets utilisent un nom canonique Aide Bot. "
+                "Je refuse de choisir arbitrairement le mauvais rôle/salon. Renomme ou supprime les doublons puis relance `/setup`.\n\n"
+                + format_collisions(collisions),
                 ephemeral=True,
             )
 
