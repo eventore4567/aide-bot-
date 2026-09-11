@@ -28,6 +28,8 @@ INTEGRITY_LABELS: dict[str, tuple[str, bool]] = {
     "negative_invite_credits": ("crédits d'invitation négatifs", True),
     "invalid_reviews": ("avis avec une note hors 1–5", True),
     "terminal_pending_reminders": ("rappels encore actifs sur des demandes terminées", False),
+    "processing_reminders": ("rappels actuellement en cours de livraison/récupération", False),
+    "invalid_reminder_states": ("rappels avec un état interne invalide", True),
     "processing_applications": ("candidatures actuellement en cours de validation", False),
     "invalid_applications": ("candidatures avec un état/type invalide", True),
     "invalid_learning_progress": ("progressions d'apprentissage invalides", True),
@@ -121,6 +123,13 @@ async def database_integrity_counts(conn: Any) -> dict[str, int]:
             JOIN requests q ON q.id=r.request_id
             WHERE r.state='pending'
               AND q.status IN ('completed','closed','cancelled','payment_refunded')
+        """,
+        "processing_reminders": """
+            SELECT COUNT(*) FROM reminders WHERE state='processing'
+        """,
+        "invalid_reminder_states": """
+            SELECT COUNT(*) FROM reminders
+            WHERE state NOT IN ('pending','processing','sent','failed','cancelled')
         """,
         "processing_applications": """
             SELECT COUNT(*) FROM applications WHERE status='processing'
