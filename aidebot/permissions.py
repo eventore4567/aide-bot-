@@ -34,6 +34,10 @@ def decide(member: discord.Member, capability: str) -> PermissionDecision:
     if member.guild.owner_id == member.id:
         return PermissionDecision(True, capability, roles, "Propriétaire du serveur.")
 
+    guild_permissions = getattr(member, "guild_permissions", None)
+    if guild_permissions is not None and bool(getattr(guild_permissions, "administrator", False)):
+        return PermissionDecision(True, capability, roles, "Administrateur Discord.")
+
     member_roles = {role.name for role in member.roles}
     matched = [role for role in roles if role in member_roles]
     if matched:
