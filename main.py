@@ -7,8 +7,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from aidebot.app_db import AideBotDatabase
 from aidebot.config import Settings
-from aidebot.db import Database
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("aidebot")
@@ -41,7 +41,7 @@ class AideBot(commands.Bot):
             allowed_mentions=discord.AllowedMentions.none(),
         )
         self.settings = settings
-        self.db = Database(settings.db_path)
+        self.db = AideBotDatabase(settings.db_path)
 
     async def setup_hook(self) -> None:
         await self.db.connect()
