@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from aidebot.catalog import RESOURCES
 from aidebot.permissions import can
+from aidebot.progression import community_level, profile_badges
 
 
 class ApplicationModal(discord.ui.Modal, title="Candidature Aide Bot"):
@@ -78,13 +79,22 @@ class CommunityCog(commands.Cog):
         target = membre or interaction.user
         row = await self.bot.db.profile(interaction.guild.id, target.id)
         average = (row["rating_sum"] / row["reviews_count"]) if row["reviews_count"] else 0
+        badges = profile_badges(
+            reputation=row["reputation"],
+            helped=row["helped_count"],
+            trainings=row["trainings_completed"],
+            reviews=row["reviews_count"],
+            average=average,
+        )
         desc = (
+            f"**Niveau communauté :** {community_level(row['reputation'])}\n"
             f"**Réputation :** {row['reputation']}\n"
             f"**Personnes aidées :** {row['helped_count']}\n"
             f"**Formations terminées :** {row['trainings_completed']}\n"
             f"**Note :** {average:.1f}/5 ({row['reviews_count']} avis)\n"
             f"**Disponible :** {'Oui' if row['helper_available'] else 'Non'}\n"
-            f"**Compétences :** {row['skills'] or 'Aucune'}"
+            f"**Compétences :** {row['skills'] or 'Aucune'}\n"
+            f"**Badges :** {' • '.join(badges)}"
         )
         await interaction.response.send_message(embed=discord.Embed(title=f"Profil — {target.display_name}", description=desc, color=0x3498DB))
 
