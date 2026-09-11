@@ -5,13 +5,112 @@ from discord import app_commands
 from discord.ext import commands
 
 from aidebot.catalog import FORMATIONS
+from aidebot.experience_content import BANNER_URL
+from aidebot.payments import PAYMENT_LABELS
 from aidebot.permissions import can, decide
+from aidebot.premium_access import has_premium, missing_premium_message
 from aidebot.request_integrity import cancel_request_atomic, create_request_with_entitlement_atomic
 from aidebot.ticketing import format_guidance
 
 
 def embed(title: str, description: str, color: int = 0x5865F2) -> discord.Embed:
     return discord.Embed(title=title, description=description, color=color)
+
+
+TRAINING_FORMS: dict[str, dict] = {
+    "discord": {
+        "title": "Débuter sur Discord",
+        "fields": (
+            ("level", "Ton niveau sur Discord", "Jamais utilisé / débutant / je connais les bases", discord.TextStyle.short, True, 100),
+            ("goal", "Ce que tu veux savoir faire", "Ex: comprendre les rôles, salons, messages et réglages importants", discord.TextStyle.paragraph, True, 550),
+            ("device", "Ton appareil principal", "PC / Mac / téléphone / tablette", discord.TextStyle.short, True, 100),
+            ("blocker", "Ce qui te bloque aujourd’hui", "Explique ce que tu ne comprends pas encore", discord.TextStyle.paragraph, False, 450),
+            ("availability", "Tes disponibilités", "Ex: mercredi 18h-20h", discord.TextStyle.short, True, 150),
+        ),
+    },
+    "serveur": {
+        "title": "Créer son serveur",
+        "fields": (
+            ("level", "État actuel du serveur", "Pas créé / vide / déjà commencé", discord.TextStyle.short, True, 100),
+            ("goal", "Projet et objectif du serveur", "Communauté, gaming, boutique, support... et résultat attendu", discord.TextStyle.paragraph, True, 600),
+            ("audience", "Public et taille visée", "Ex: amis, 100 membres, communauté publique...", discord.TextStyle.short, True, 150),
+            ("blocker", "Ce que tu veux améliorer en priorité", "Structure, rôles, permissions, onboarding, tickets, sécurité...", discord.TextStyle.paragraph, True, 450),
+            ("availability", "Tes disponibilités", "Ex: samedi 14h-18h", discord.TextStyle.short, True, 150),
+        ),
+    },
+    "permissions": {
+        "title": "Permissions & sécurité",
+        "fields": (
+            ("level", "Ton niveau / rôle actuel", "Débutant / modérateur / administrateur...", discord.TextStyle.short, True, 120),
+            ("goal", "Le problème exact", "Qui doit voir/faire quoi ? Qu’est-ce qui ne fonctionne pas ?", discord.TextStyle.paragraph, True, 650),
+            ("roles", "Rôles ou salons concernés", "Ex: @Membre, @Modo, catégorie Staff...", discord.TextStyle.short, True, 180),
+            ("blocker", "Ce que tu as déjà essayé", "Permissions cochées, overrides, ordre des rôles, tests effectués...", discord.TextStyle.paragraph, False, 450),
+            ("availability", "Tes disponibilités", "Ex: ce soir 19h-21h", discord.TextStyle.short, True, 150),
+        ),
+    },
+    "bot": {
+        "title": "Créer son bot Discord",
+        "fields": (
+            ("level", "Ton niveau en code", "Aucun / bases Python / intermédiaire", discord.TextStyle.short, True, 120),
+            ("goal", "Le bot que tu veux créer", "Décris les fonctions principales et le résultat final attendu", discord.TextStyle.paragraph, True, 650),
+            ("stack", "Outils déjà utilisés", "Python, discord.py, GitHub, Railway... ou aucun", discord.TextStyle.short, True, 180),
+            ("blocker", "Erreur ou blocage actuel", "Message d’erreur, étape où tu bloques, ce que tu as déjà testé", discord.TextStyle.paragraph, False, 450),
+            ("availability", "Tes disponibilités", "Ex: week-end 15h-20h", discord.TextStyle.short, True, 150),
+        ),
+    },
+    "vip": {
+        "title": "Accompagnement Premium",
+        "fields": (
+            ("level", "Ton niveau actuel", "Débutant / intermédiaire / avancé", discord.TextStyle.short, True, 120),
+            ("goal", "Ton projet et ton résultat final", "Décris précisément ce que tu veux obtenir avec l’accompagnement", discord.TextStyle.paragraph, True, 650),
+            ("scope", "Ce que tu veux travailler", "Serveur, bot, sécurité, permissions, audit, organisation...", discord.TextStyle.short, True, 180),
+            ("blocker", "Tes blocages actuels", "Ce qui t’empêche d’avancer et ce qui a déjà été essayé", discord.TextStyle.paragraph, False, 450),
+            ("availability", "Tes disponibilités", "Jours + horaires possibles", discord.TextStyle.short, True, 150),
+        ),
+    },
+    "serveur-pro": {
+        "title": "Serveur professionnel",
+        "fields": (
+            ("level", "État actuel du serveur", "Nouveau / existant / déjà public", discord.TextStyle.short, True, 120),
+            ("goal", "Objectif professionnel", "Public, service proposé, image souhaitée et résultat final", discord.TextStyle.paragraph, True, 650),
+            ("scope", "Éléments à refaire", "Architecture, rôles, onboarding, tickets, logs, staff...", discord.TextStyle.short, True, 180),
+            ("blocker", "Problèmes actuels", "Permissions, organisation, sécurité, expérience membre...", discord.TextStyle.paragraph, False, 450),
+            ("availability", "Tes disponibilités", "Jours + horaires possibles", discord.TextStyle.short, True, 150),
+        ),
+    },
+    "bot-avance": {
+        "title": "Bot avancé",
+        "fields": (
+            ("level", "Stack et niveau actuel", "Python/discord.py, DB, Git, hébergement...", discord.TextStyle.short, True, 160),
+            ("goal", "Architecture / fonctionnalités visées", "Décris le bot final et les fonctions importantes", discord.TextStyle.paragraph, True, 650),
+            ("scope", "Parties à travailler", "DB, permissions, logs, tests, déploiement, architecture...", discord.TextStyle.short, True, 180),
+            ("blocker", "Erreurs ou dette technique", "Ce qui casse, ralentit ou rend le bot difficile à maintenir", discord.TextStyle.paragraph, False, 450),
+            ("availability", "Tes disponibilités", "Jours + horaires possibles", discord.TextStyle.short, True, 150),
+        ),
+    },
+    "securite-avancee": {
+        "title": "Sécurité avancée",
+        "fields": (
+            ("level", "Contexte du serveur", "Taille, public, niveau de risque", discord.TextStyle.short, True, 160),
+            ("goal", "Objectif de l’audit", "Ce que tu veux protéger ou vérifier précisément", discord.TextStyle.paragraph, True, 650),
+            ("scope", "Zones sensibles", "Rôles, bots, permissions, webhooks, anti-raid...", discord.TextStyle.short, True, 180),
+            ("blocker", "Incidents ou inquiétudes", "Décris les problèmes déjà vus sans envoyer de secrets", discord.TextStyle.paragraph, False, 450),
+            ("availability", "Tes disponibilités", "Jours + horaires possibles", discord.TextStyle.short, True, 150),
+        ),
+    },
+}
+
+
+def _human_status(status: str) -> str:
+    labels = {
+        "open": "Ouvert — en attente de prise en charge",
+        "payment_pending": "En attente de validation du paiement",
+        "payment_refused": "Paiement refusé",
+        "payment_refunded": "Remboursé",
+        "completed": "Terminé",
+        "closed": "Archivé",
+    }
+    return labels.get(status, status.replace("_", " ").capitalize())
 
 
 class ReviewModal(discord.ui.Modal, title="Laisser un avis"):
@@ -79,7 +178,7 @@ class TicketActionsView(discord.ui.View):
         if not req:
             return await interaction.response.send_message("Demande introuvable.", ephemeral=True)
         if req["payment_status"] == "pending":
-            return await interaction.response.send_message("Cette formation VIP est encore en attente de confirmation du paiement.", ephemeral=True)
+            return await interaction.response.send_message("Le paiement doit d’abord être validé dans ce ticket.", ephemeral=True)
         capability = "help.claim" if req["training_key"] == "community_help" else "training.claim"
         decision = decide(interaction.user, capability)
         if not decision.allowed:
@@ -94,7 +193,7 @@ class TicketActionsView(discord.ui.View):
                 return await interaction.response.send_message(f"Déjà prise par <@{fresh['trainer_id']}>.", ephemeral=True)
             return await interaction.response.send_message("Cette demande n’est plus disponible.", ephemeral=True)
         await self.cog.log_action(interaction.guild, "Demande prise", f"#{req['id']} prise par {interaction.user.mention}")
-        await interaction.response.send_message(f"Demande prise par {interaction.user.mention}.")
+        await interaction.response.send_message(f"Prise en charge par {interaction.user.mention}. Le client sait maintenant qui suit son ticket.")
 
     @discord.ui.button(label="Étape suivante", style=discord.ButtonStyle.secondary, custom_id="aidebot:ticket:progress")
     async def progress(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
@@ -113,7 +212,7 @@ class TicketActionsView(discord.ui.View):
         next_label = "Terminé" if new_progress >= total_steps else (data["steps"][new_progress] if data and new_progress < len(data["steps"]) else "Étape suivante")
         guidance = format_guidance(req["training_key"], new_progress)
         await self.cog.log_action(interaction.guild, "Progression", f"#{req['id']} • {new_progress}/{total_steps} par {interaction.user.mention}")
-        message = f"Progression : **{new_progress}/{total_steps}** • prochain : **{next_label}**"
+        message = f"Progression : **{new_progress}/{total_steps}** • prochaine étape : **{next_label}**"
         if guidance:
             message += f"\n\n{guidance}"
         await interaction.response.send_message(message)
@@ -170,19 +269,30 @@ class TicketActionsView(discord.ui.View):
 
 
 class TrainingRequestModal(discord.ui.Modal):
-    level = discord.ui.TextInput(label="Ton niveau", placeholder="Débutant / intermédiaire / avancé", max_length=80)
-    objective = discord.ui.TextInput(label="Ton objectif", style=discord.TextStyle.paragraph, max_length=700)
-    availability = discord.ui.TextInput(label="Tes disponibilités", placeholder="Ex: mercredi 18h-20h", max_length=150)
-    budget = discord.ui.TextInput(label="Budget / formule", placeholder="Classique / VIP / à discuter", required=False, max_length=100)
-
     def __init__(self, cog: "TrainingCog", training_key: str) -> None:
-        super().__init__(title=FORMATIONS[training_key]["title"][:45])
+        data = TRAINING_FORMS[training_key]
+        super().__init__(title=data["title"][:45])
         self.cog = cog
         self.training_key = training_key
+        self.inputs: dict[str, tuple[str, discord.ui.TextInput]] = {}
+        for key, label, placeholder, style, required, max_length in data["fields"]:
+            item = discord.ui.TextInput(
+                label=label[:45],
+                placeholder=placeholder[:100],
+                style=style,
+                required=required,
+                max_length=max_length,
+            )
+            self.inputs[key] = (label, item)
+            self.add_item(item)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
+        data = FORMATIONS[self.training_key]
+        if data["vip"] and not has_premium(interaction.user):
+            return await interaction.response.send_message(missing_premium_message(), ephemeral=True)
+
         existing = await self.cog.bot.db.active_request_for_training(interaction.guild.id, interaction.user.id, self.training_key)
         if existing:
             channel = interaction.guild.get_channel(existing["channel_id"]) if existing["channel_id"] else None
@@ -192,28 +302,108 @@ class TrainingRequestModal(discord.ui.Modal):
                 ephemeral=True,
             )
 
-        data = FORMATIONS[self.training_key]
+        values = {key: str(item).strip() for key, (_label, item) in self.inputs.items()}
+        detail_lines = []
+        for key, (label, _item) in self.inputs.items():
+            if key in {"level", "availability"}:
+                continue
+            value = values.get(key, "")
+            if value:
+                detail_lines.append(f"{label} : {value}")
+        objective = "\n\n".join(detail_lines)[:2400] or "Objectif à préciser avec le Formateur."
         requires_invite = not data["vip"] and not can(interaction.user, "training.claim")
-        status = "payment_pending" if data["vip"] else "open"
-        payment = "pending" if data["vip"] else "not_required"
         await self.cog.create_request_channel(
             interaction,
             self.training_key,
-            level=str(self.level),
-            objective=str(self.objective),
-            availability=str(self.availability),
-            budget=str(self.budget),
-            status=status,
-            payment_status=payment,
+            level=values.get("level", "Non précisé"),
+            objective=objective,
+            availability=values.get("availability", "Non précisé"),
+            budget="Abonnement Premium actif" if data["vip"] else "Formation classique",
+            status="open",
+            payment_status="not_required",
             requires_invite=requires_invite,
+        )
+
+
+class PremiumPurchaseModal(discord.ui.Modal, title="Acheter Aide Bot Premium"):
+    level = discord.ui.TextInput(
+        label="Ton niveau actuel",
+        placeholder="Débutant / intermédiaire / avancé",
+        max_length=100,
+    )
+    project = discord.ui.TextInput(
+        label="Ton projet",
+        placeholder="Serveur, bot, sécurité, permissions...",
+        style=discord.TextStyle.paragraph,
+        max_length=600,
+    )
+    result = discord.ui.TextInput(
+        label="Résultat attendu",
+        placeholder="Qu’est-ce que tu veux avoir terminé à la fin ?",
+        style=discord.TextStyle.paragraph,
+        max_length=600,
+    )
+    availability = discord.ui.TextInput(
+        label="Tes disponibilités",
+        placeholder="Ex: mercredi 18h-20h",
+        max_length=150,
+    )
+    payment_note = discord.ui.TextInput(
+        label="Note paiement (optionnel)",
+        placeholder="Pseudo/référence publique uniquement — jamais de mot de passe",
+        required=False,
+        max_length=180,
+    )
+
+    def __init__(self, cog: "TrainingCog") -> None:
+        super().__init__()
+        self.cog = cog
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            return
+        if has_premium(interaction.user):
+            return await interaction.response.send_message(
+                "Ton abonnement Premium est déjà actif. Utilise le bouton **Premium** dans le centre ou choisis une formation Premium.",
+                ephemeral=True,
+            )
+        existing = await self.cog.bot.db.active_request_for_training(interaction.guild.id, interaction.user.id, "vip")
+        if existing:
+            channel = interaction.guild.get_channel(existing["channel_id"]) if existing["channel_id"] else None
+            destination = channel.mention if isinstance(channel, discord.TextChannel) else f"demande #{existing['id']}"
+            return await interaction.response.send_message(
+                f"Tu as déjà un achat/abonnement Premium en cours : {destination}.",
+                ephemeral=True,
+            )
+        objective = (
+            f"Projet : {str(self.project).strip()}\n\n"
+            f"Résultat attendu : {str(self.result).strip()}"
+        )
+        note = str(self.payment_note).strip()
+        if note:
+            objective += f"\n\nNote de paiement : {note}"
+        await self.cog.create_request_channel(
+            interaction,
+            "vip",
+            level=str(self.level),
+            objective=objective,
+            availability=str(self.availability),
+            budget="Achat Premium depuis 🛒・shop",
+            status="payment_pending",
+            payment_status="pending",
+            requires_invite=False,
         )
 
 
 class TrainingSelect(discord.ui.Select):
     def __init__(self, cog: "TrainingCog") -> None:
-        options = [discord.SelectOption(label=v["title"], value=k, description=v["description"][:95]) for k, v in FORMATIONS.items()]
+        options = []
+        for key, data in FORMATIONS.items():
+            access = "Premium requis" if data["vip"] else data.get("difficulty", "Classique")
+            description = f"{access} • {data.get('duration', 'Durée variable')} • {data['description']}"
+            options.append(discord.SelectOption(label=data["title"][:100], value=key, description=description[:100]))
         super().__init__(
-            placeholder="Choisis ce que tu veux apprendre",
+            placeholder="Choisis précisément la formation que tu veux",
             min_values=1,
             max_values=1,
             options=options,
@@ -222,7 +412,12 @@ class TrainingSelect(discord.ui.Select):
         self.cog = cog
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(TrainingRequestModal(self.cog, self.values[0]))
+        key = self.values[0]
+        if not isinstance(interaction.user, discord.Member):
+            return
+        if FORMATIONS[key]["vip"] and not has_premium(interaction.user):
+            return await interaction.response.send_message(missing_premium_message(), ephemeral=True)
+        await interaction.response.send_modal(TrainingRequestModal(self.cog, key))
 
 
 class TrainingPanel(discord.ui.View):
@@ -267,8 +462,6 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
         guild = interaction.guild
         assert guild is not None and isinstance(interaction.user, discord.Member)
         requires_invite = bool(fields.pop("requires_invite", False))
-        # Legacy callers may still pass this field; entitlement is now derived
-        # and consumed inside the atomic creation transaction instead.
         fields.pop("invite_used", None)
 
         services = discord.utils.get(guild.categories, name="━━ SERVICES ━━")
@@ -340,20 +533,62 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
             raise
 
         title = FORMATIONS.get(training_key, {"title": "Aide communautaire"})["title"]
-        desc = (
-            f"Demande **#{request_id}** de {interaction.user.mention}\n"
-            f"**Type :** {title}\n"
-            f"**Niveau :** {fields.get('level', '-')}\n"
-            f"**Objectif :** {fields.get('objective', '-')}\n"
-            f"**Disponibilités :** {fields.get('availability', '-')}\n"
-            f"**Statut :** `{fields.get('status', 'open')}`\n"
-            f"**Paiement :** `{fields.get('payment_status', 'not_required')}`"
+        payment_status = str(fields.get("payment_status", "not_required"))
+        status = str(fields.get("status", "open"))
+        if payment_status == "pending":
+            display_title = "Activation Premium"
+        elif training_key == "community_help":
+            display_title = "Aide gratuite"
+        else:
+            display_title = title
+
+        ticket = discord.Embed(
+            title=f"Ticket #{request_id} — {display_title}",
+            description=(
+                f"{interaction.user.mention}, ta demande est enregistrée. **Tout ce qu’il faut comprendre est regroupé dans ce message.** "
+                "Le staff utilise les boutons ci-dessous pour la prendre en charge et suivre son avancement."
+            ),
+            color=0x9B59B6 if payment_status == "pending" else 0x5865F2,
         )
+        objective = str(fields.get("objective", "-")).strip() or "Non précisé"
+        ticket.add_field(name="Ta demande", value=objective[:1024], inline=False)
+        ticket.add_field(
+            name="Informations",
+            value=(
+                f"**Niveau :** {str(fields.get('level', '-'))[:180]}\n"
+                f"**Disponibilités :** {str(fields.get('availability', '-'))[:180]}\n"
+                f"**Formule :** {str(fields.get('budget', '-'))[:180]}"
+            ),
+            inline=True,
+        )
+        payment_label = "Inclus / non requis" if payment_status == "not_required" else PAYMENT_LABELS.get(payment_status, payment_status)
+        ticket.add_field(
+            name="État",
+            value=f"**Ticket :** {_human_status(status)}\n**Paiement :** {payment_label}",
+            inline=True,
+        )
+        guidance = format_guidance(training_key, 0)
+        if guidance:
+            ticket.add_field(name="Première étape", value=guidance[:1024], inline=False)
+        if payment_status == "pending":
+            next_text = (
+                "1. La Direction vérifie le paiement avec les boutons **Paiement validé / refusé**.\n"
+                "2. Si le paiement est validé, le rôle **💎・VIP** est ajouté automatiquement.\n"
+                "3. Le ticket passe en état **Ouvert** et un Formateur peut cliquer sur **Prendre**.\n"
+                "4. Aucun mot de passe, token ou code secret ne doit être envoyé."
+            )
+        else:
+            next_text = (
+                "1. Un membre autorisé clique sur **Prendre**.\n"
+                "2. Il répond directement dans ce salon et avance les étapes avec **Étape suivante**.\n"
+                "3. Quand l’objectif est atteint, il clique sur **Terminer** puis le ticket peut être archivé."
+            )
+        ticket.add_field(name="Ce qui se passe maintenant", value=next_text, inline=False)
+        ticket.set_image(url=BANNER_URL)
+        ticket.set_footer(text="Aide Bot • Un ticket = un responsable • Ne partage jamais de secret")
+
         try:
-            await channel.send(embed=embed("Nouvelle demande", desc), view=TicketActionsView(self))
-            guidance = format_guidance(training_key, 0)
-            if guidance:
-                await channel.send(embed=embed("Ressource de départ", guidance, 0x3498DB))
+            await channel.send(embed=ticket, view=TicketActionsView(self), allowed_mentions=discord.AllowedMentions.none())
         except (discord.Forbidden, discord.HTTPException):
             refunded = await self._rollback_creation(guild, request_id, invite_used, channel)
             return await interaction.response.send_message(
@@ -362,12 +597,17 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
             )
 
         await self.log_action(guild, "Nouvelle demande", f"#{request_id} • {title} • {interaction.user.mention}")
-        await interaction.response.send_message(f"Ta demande est créée : {channel.mention}", ephemeral=True)
+        await interaction.response.send_message(
+            f"Ta demande est prête : {channel.mention}. Toutes les informations et les prochaines étapes sont dans le premier message.",
+            ephemeral=True,
+        )
 
     async def post_panel(self, channel: discord.TextChannel) -> None:
         text = (
-            "Choisis une formation ci-dessous. Les formations classiques demandent **1 invitation valide**. "
-            f"La formule VIP est actuellement configurée à **{self.bot.settings.vip_price_robux} Robux** et doit être confirmée manuellement par la Direction."
+            "Choisis une formation ci-dessous. **Chaque choix ouvre maintenant un formulaire adapté au sujet sélectionné** : "
+            "les questions ne sont plus identiques pour Discord, serveur, permissions ou bot.\n\n"
+            "Les formations classiques peuvent demander **1 invitation valide**. Les parcours Premium sont accessibles uniquement "
+            "aux membres possédant le rôle **💎・VIP** ; l’abonnement s’achète dans `🛒・shop` ou avec `/buy`."
         )
         await channel.send(embed=embed("Aide Bot — Formations", text), view=TrainingPanel(self))
 
@@ -377,7 +617,7 @@ class TrainingCog(commands.Cog, name="TrainingCog"):
     async def catalogue(self, interaction: discord.Interaction) -> None:
         lines = []
         for data in FORMATIONS.values():
-            suffix = f" • {self.bot.settings.vip_price_robux} Robux" if data["vip"] else " • 1 invitation valide"
+            suffix = " • Premium requis" if data["vip"] else " • 1 invitation valide"
             lines.append(f"**{data['title']}**{suffix}\n{data['description']}")
         await interaction.response.send_message(embed=embed("Catalogue", "\n\n".join(lines)), ephemeral=True)
 
