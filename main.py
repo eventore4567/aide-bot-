@@ -18,6 +18,7 @@ EXTENSIONS = (
     "aidebot.cogs.community",
     "aidebot.cogs.invites",
     "aidebot.cogs.learning",
+    "aidebot.cogs.self_learning",
     "aidebot.cogs.member_experience",
     "aidebot.cogs.payments",
     "aidebot.cogs.reminders",
