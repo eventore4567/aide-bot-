@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import discord
 
-# Structure V45 : peu de salons, chacun a un rôle clair. Les membres utilisent
-# des panneaux/boutons ; les commandes slash restent volontairement minimales.
+# Structure compacte : chaque salon permanent a un rôle clair. Les membres
+# utilisent surtout des panneaux, menus et formulaires plutôt qu'une longue
+# liste de commandes slash.
 ROLE_SPECS = [
     ("👑・Direction", 0xF1C40F, dict(manage_channels=True, manage_roles=True, manage_messages=True)),
     ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True)),
@@ -17,11 +18,12 @@ ROLE_SPECS = [
     ("👤・Membre", 0x95A5A6, dict()),
 ]
 
-# Bienvenue, formations, vidéos, boutique, Premium et tickets ont chacun leur
-# propre panneau. La catégorie Premium est masquée aux non-VIP par /setup.
+# V52 garde 15 salons permanents : l'ancien salon vidéo public est remplacé
+# par un assistant d'aide spécialisé. Les tutoriels restent accessibles depuis
+# le Centre d'aide et l'espace Premium sans monopoliser un salon supplémentaire.
 CATEGORY_SPECS = [
     ("━━ INFORMATIONS ━━", ["👋・bienvenue", "📜・règlement", "📢・annonces"]),
-    ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🎓・formations", "🎥・videos-guides"]),
+    ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🤖・assistant-aide", "🎓・formations"]),
     ("━━ BOUTIQUE ━━", ["🛒・shop"]),
     ("━━ PREMIUM ━━", ["💎・espace-premium", "🎬・videos-premium"]),
     ("━━ SERVICES ━━", ["🎫・ouvrir-ticket", "⭐・avis", "🧑‍🏫・recrutement"]),
