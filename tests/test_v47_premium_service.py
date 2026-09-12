@@ -99,7 +99,8 @@ def test_v47_shop_still_exists_as_compatibility_layer():
 
 
 def test_v47_is_superseded_by_v50_without_more_public_commands():
-    assert "aidebot.cogs.premium_service_v50" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v50_runtime" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v50" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v49" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47" not in EXTENSIONS
