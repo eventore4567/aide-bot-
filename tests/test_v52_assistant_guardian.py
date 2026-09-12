@@ -30,12 +30,14 @@ def _button_labels(view: discord.ui.View) -> set[str]:
 
 def test_v52_ai_engine_remains_available_but_room_is_consolidated_in_v60():
     channels = [name for _category, names in CATEGORY_SPECS for name in names]
-    assert PERMANENT_CHANNEL_COUNT <= 14
+    assert PERMANENT_CHANNEL_COUNT <= 15
     assert AI_CHANNEL not in channels
     assert "🎓・centre-aide" in channels
+    assert "💬・général" in channels
     assert "aidebot.cogs.assistant_guardian_v52" in EXTENSIONS
     assert "aidebot.cogs.experience_v56" in EXTENSIONS
     assert "aidebot.cogs.product_suite_v60" in EXTENSIONS
+    assert "aidebot.cogs.simple_help_v62" in EXTENSIONS
 
 
 def test_v52_ai_panel_is_one_clear_action():
