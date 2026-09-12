@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("aidebot")
 
 # Les cogs historiques conservent les workers, transactions, logs et vues
-# persistantes. V48 transforme Premium en centre de services avec audit,
-# pré-vérification et construction de serveur confirmée + rapport final.
+# persistantes. V49 transforme Premium en offre Elite à 10 000 Robux avec
+# audit 360°, snapshots, 12 modèles serveur et dossier de livraison.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -29,7 +29,7 @@ EXTENSIONS = (
     "aidebot.cogs.recruitment_panel",
     "aidebot.cogs.recruitment_v46",
     "aidebot.cogs.ticket_experience",
-    "aidebot.cogs.premium_service_v48",
+    "aidebot.cogs.premium_service_v49",
     "aidebot.cogs.premium_service_v48_runtime",
     "aidebot.cogs.ticket_polish_v44",
     "aidebot.cogs.ticket_recovery",
@@ -109,7 +109,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot V48 • /setup • /buy"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot V49 • Premium Elite • /setup • /buy"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
