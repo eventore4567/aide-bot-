@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 
 from aidebot.catalog import FORMATIONS
+from aidebot.cogs.experience_v43 import VideoCategoryLinks, video_category_embed
 from aidebot.cogs.training import TrainingRequestModal
 from aidebot.experience_content import BANNER_URL
 from aidebot.premium_access import has_premium
@@ -16,7 +17,7 @@ PREMIUM = 0x9B59B6
 
 OUTCOMES: dict[str, tuple[str, ...]] = {
     "discord": (
-        "Comprendre enfin l’interface Discord sans chercher au hasard",
+        "Comprendre l’interface Discord sans chercher au hasard",
         "Savoir à quoi servent salons, catégories, rôles et permissions",
         "Configurer les réglages importants et éviter les erreurs de sécurité",
     ),
@@ -58,13 +59,25 @@ OUTCOMES: dict[str, tuple[str, ...]] = {
 }
 
 
+VIDEO_CATEGORY_FOR_TRAINING = {
+    "discord": "discord",
+    "serveur": "discord",
+    "permissions": "discord",
+    "bot": "bot",
+    "vip": "support",
+    "serveur-pro": "discord",
+    "bot-avance": "workflow",
+    "securite-avancee": "support",
+}
+
+
 def training_catalog_embed() -> discord.Embed:
     e = discord.Embed(
         title="Aide Bot — Choisis ton parcours",
         description=(
-            "Ici, **chaque choix est réellement différent**. Sélectionne un parcours : Aide Bot affiche d’abord sa fiche complète "
-            "avec niveau, durée, programme et résultat attendu. Tu décides ensuite si tu veux ouvrir son formulaire spécifique.\n\n"
-            "Les parcours marqués **Premium** nécessitent le rôle **💎・VIP**. L’achat se fait uniquement dans `🛒・shop` ou avec `/buy`."
+            "Ici, **chaque choix est réellement différent**. Sélectionne un parcours : Aide Bot affiche d’abord sa **fiche complète** "
+            "avec niveau, durée, accès, programme, résultat attendu et ressources utiles. Tu décides ensuite si tu veux commencer.\n\n"
+            "Les parcours **Premium** nécessitent `💎・VIP`. L’achat reste uniquement dans `🛒・shop` ou avec `/buy`."
         ),
         color=COLOR,
     )
@@ -75,19 +88,20 @@ def training_catalog_embed() -> discord.Embed:
         (premium if data["vip"] else free).append(line)
     e.add_field(name="Formations classiques", value="\n".join(free), inline=False)
     e.add_field(name="Parcours Premium", value="\n".join(premium), inline=False)
+    e.add_field(
+        name="Le parcours en 4 temps",
+        value="**1. Fiche complète** → **2. Formulaire adapté** → **3. Ticket + responsable** → **4. Étapes + validation finale**",
+        inline=False,
+    )
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot • Sélection → fiche détaillée → formulaire adapté → ticket")
+    e.set_footer(text="Aide Bot V43 • Sélection → fiche → formulaire → suivi")
     return e
 
 
 def training_preview_embed(key: str) -> discord.Embed:
     data = FORMATIONS[key]
     premium = bool(data["vip"])
-    e = discord.Embed(
-        title=data["title"],
-        description=data["description"],
-        color=PREMIUM if premium else COLOR,
-    )
+    e = discord.Embed(title=data["title"], description=data["description"], color=PREMIUM if premium else COLOR)
     e.add_field(
         name="En un coup d’œil",
         value=(
@@ -111,13 +125,21 @@ def training_preview_embed(key: str) -> discord.Embed:
     e.add_field(
         name="Le formulaire sera adapté à CE parcours",
         value=(
-            "Aide Bot ne te pose plus quatre questions génériques pour tout. Le formulaire suivant demande uniquement les informations utiles "
-            "au sujet choisi : ton contexte, ton objectif, les éléments concernés, ton blocage réel et tes disponibilités."
+            "Les questions changent selon le sujet : contexte, objectif, éléments concernés, blocage réel et disponibilités. "
+            "Le staff reçoit donc un ticket exploitable dès le premier message."
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="Avant de commencer",
+        value=(
+            "Prépare ton objectif précis, ce que tu as déjà essayé et les informations utiles. "
+            + ("Ton rôle `💎・VIP` doit être actif." if premium else "Une invitation valide peut être nécessaire selon la configuration actuelle.")
         ),
         inline=False,
     )
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot • Vérifie la fiche puis clique sur Commencer")
+    e.set_footer(text="Aide Bot V43 • Lis la fiche, regarde les ressources si besoin, puis commence")
     return e
 
 
@@ -136,6 +158,15 @@ class TrainingPreviewView(discord.ui.View):
             shop = discord.utils.get(interaction.guild.text_channels, name="🛒・shop") if interaction.guild else None
             return await interaction.response.send_message(embed=missing_premium_embed(shop), ephemeral=True)
         await interaction.response.send_modal(TrainingRequestModal(self.cog, self.key))
+
+    @discord.ui.button(label="Vidéos utiles", style=discord.ButtonStyle.primary)
+    async def videos(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        category = VIDEO_CATEGORY_FOR_TRAINING.get(self.key, "support")
+        await interaction.response.send_message(
+            embed=video_category_embed(category),
+            view=VideoCategoryLinks(category),
+            ephemeral=True,
+        )
 
     @discord.ui.button(label="Retour aux parcours", style=discord.ButtonStyle.secondary)
     async def back(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
@@ -170,11 +201,7 @@ class V42TrainingSelect(discord.ui.Select):
         if FORMATIONS[key]["vip"] and not has_premium(interaction.user):
             shop = discord.utils.get(interaction.guild.text_channels, name="🛒・shop") if interaction.guild else None
             return await interaction.response.send_message(embed=missing_premium_embed(shop), ephemeral=True)
-        await interaction.response.send_message(
-            embed=training_preview_embed(key),
-            view=TrainingPreviewView(self.cog, key),
-            ephemeral=True,
-        )
+        await interaction.response.send_message(embed=training_preview_embed(key), view=TrainingPreviewView(self.cog, key), ephemeral=True)
 
 
 class V42TrainingPanel(discord.ui.View):
