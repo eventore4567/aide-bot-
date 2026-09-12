@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 
 from aidebot.cogs.experience_v43 import member_space_embed
+from aidebot.cogs.setup_server import SetupServerCog
 from aidebot.cogs.training import TrainingPanel, TrainingRequestModal
 from aidebot.cogs.training_experience_v42 import training_catalog_embed
 from aidebot.experience_content import BANNER_URL
@@ -11,6 +12,10 @@ from aidebot.premium_access import has_premium
 from aidebot.ux_text import missing_premium_embed, premium_member_embed
 from aidebot.video_catalog import PREMIUM_VIDEO_LIBRARY
 
+
+PREMIUM_CATEGORY = "━━ PREMIUM ━━"
+PREMIUM_HUB_CHANNEL = "💎・espace-premium"
+PREMIUM_VIDEO_CHANNEL = "🎬・videos-premium"
 
 PREMIUM_VIDEO_CATEGORIES = {
     "architecture": {
@@ -68,6 +73,11 @@ def premium_hub_embed() -> discord.Embed:
     e.add_field(
         name="Support Premium",
         value="Ouvre un accompagnement personnalisé avec contexte, objectif, disponibilité et suivi jusqu’au résultat.",
+        inline=False,
+    )
+    e.add_field(
+        name="Accès",
+        value="Cette catégorie est automatiquement masquée aux non-VIP. Dès que le rôle **💎・VIP** est attribué après validation, les salons Premium deviennent visibles.",
         inline=False,
     )
     e.set_image(url=BANNER_URL)
@@ -217,11 +227,92 @@ class PremiumHubView(discord.ui.View):
         await interaction.response.send_message(embed=premium_member_embed(interaction.user), ephemeral=True)
 
 
+def _install_setup_patch() -> None:
+    """Extend /setup through regular methods; never mutate app_commands.Command.callback."""
+    if getattr(SetupServerCog, "_aidebot_v45_patched", False):
+        return
+
+    original_category_permissions = SetupServerCog._reconcile_category_permissions
+    original_channel_permissions = SetupServerCog._reconcile_channel_permissions
+
+    async def category_permissions(
+        self: SetupServerCog,
+        guild: discord.Guild,
+        category: discord.CategoryChannel,
+        roles: dict[str, discord.Role],
+    ) -> None:
+        await original_category_permissions(self, guild, category, roles)
+        if category.name != PREMIUM_CATEGORY:
+            return
+        await category.set_permissions(
+            guild.default_role,
+            view_channel=False,
+            reason="Aide Bot V45 — Premium privé",
+        )
+        await category.set_permissions(
+            roles["💎・VIP"],
+            view_channel=True,
+            send_messages=False,
+            read_message_history=True,
+            reason="Aide Bot V45 — accès VIP",
+        )
+        for role_name in ("👑・Direction", "📘・Responsable Formation", "🎓・Formateur"):
+            await category.set_permissions(
+                roles[role_name],
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                reason="Aide Bot V45 — staff Premium",
+            )
+
+    async def channel_permissions(
+        self: SetupServerCog,
+        guild: discord.Guild,
+        channel: discord.TextChannel,
+        roles: dict[str, discord.Role],
+    ) -> None:
+        await original_channel_permissions(self, guild, channel, roles)
+        if not channel.category or channel.category.name != PREMIUM_CATEGORY:
+            return
+
+        await channel.set_permissions(
+            guild.default_role,
+            view_channel=False,
+            reason="Aide Bot V45 — salon Premium privé",
+        )
+        await channel.set_permissions(
+            roles["💎・VIP"],
+            view_channel=True,
+            send_messages=False,
+            read_message_history=True,
+            reason="Aide Bot V45 — lecture VIP",
+        )
+        for role_name in ("👑・Direction", "📘・Responsable Formation", "🎓・Formateur"):
+            await channel.set_permissions(
+                roles[role_name],
+                view_channel=True,
+                send_messages=True,
+                manage_messages=True,
+                read_message_history=True,
+                reason="Aide Bot V45 — staff Premium",
+            )
+
+        if channel.name == PREMIUM_HUB_CHANNEL:
+            await self._upsert_panel(channel, premium_hub_embed(), PremiumHubView(self.bot))
+        elif channel.name == PREMIUM_VIDEO_CHANNEL:
+            await self._upsert_panel(channel, premium_video_home_embed(), PremiumVideoLibraryView())
+
+    SetupServerCog._reconcile_category_permissions = category_permissions
+    SetupServerCog._reconcile_channel_permissions = channel_permissions
+    SetupServerCog._aidebot_v45_patched = True
+
+
 class PremiumV45Cog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     async def cog_load(self) -> None:
+        _install_setup_patch()
         self.bot.add_view(PremiumHubView(self.bot))
         self.bot.add_view(PremiumVideoLibraryView())
 
