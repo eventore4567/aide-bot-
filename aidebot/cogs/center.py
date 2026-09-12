@@ -5,11 +5,12 @@ from discord import app_commands
 from discord.ext import commands
 
 from aidebot.cogs.experience_v43 import VideoLibraryView, video_home_embed
-from aidebot.cogs.experience_v44 import DashboardView, SmartSupportView, dashboard_embed, premium_compare_embed
+from aidebot.cogs.experience_v44 import SmartSupportView, premium_compare_embed
+from aidebot.cogs.help_center_v46 import HelpCenterV46View, help_center_embed
 from aidebot.cogs.training import TrainingRequestModal
 from aidebot.experience_content import BANNER_URL, FREE_DESCRIPTION, GUIDES
 from aidebot.premium_access import has_premium
-from aidebot.ux_text import missing_premium_embed, premium_member_embed
+from aidebot.ux_text import missing_premium_embed
 from aidebot.video_catalog import VIDEO_LIBRARY
 
 COLOR = 0x5865F2
@@ -18,7 +19,9 @@ PREMIUM = 0x9B59B6
 
 
 def center_embed(vip_price: int) -> discord.Embed:
-    return dashboard_embed(vip_price)
+    e = help_center_embed(vip_price)
+    e.title = "Aide Bot — Centre d’aide • Tableau de bord"
+    return e
 
 
 def guide_index_embed() -> discord.Embed:
@@ -33,7 +36,7 @@ def guide_index_embed() -> discord.Embed:
         color=SUCCESS,
     )
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot V44 • Guide → exemple → erreurs → vidéo → pratique")
+    e.set_footer(text="Aide Bot V46 • Guide → exemple → erreurs → vidéo → pratique")
     return e
 
 
@@ -48,7 +51,7 @@ def guide_embed(key: str) -> discord.Embed:
     if video:
         e.add_field(name="Vidéo complémentaire", value=f"**{video['title']}**\n{video['note']}", inline=False)
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot V44 • Comprends d’abord, applique ensuite")
+    e.set_footer(text="Aide Bot V46 • Comprends d’abord, applique ensuite")
     return e
 
 
@@ -166,10 +169,21 @@ class PremiumView(discord.ui.View):
         await interaction.response.send_modal(TrainingRequestModal(training, "vip"))
 
 
-class CenterView(DashboardView):
+class CenterView(HelpCenterV46View):
     def __init__(self, cog: "CenterCog") -> None:
         super().__init__(cog.bot)
         self.cog = cog
+
+        # Compatibilité avec le dashboard V44 : on garde exactement les cinq
+        # raccourcis principaux. Les choix supplémentaires vivent dans le menu
+        # de 14 sujets, ce qui évite un mur de boutons.
+        for item in list(self.children):
+            if not isinstance(item, discord.ui.Button):
+                continue
+            if item.label in {"Candidatures", "Statut Premium"}:
+                self.remove_item(item)
+            elif item.label == "Support / Tickets":
+                item.label = "Support intelligent"
 
 
 class CenterCog(commands.Cog, name="CenterCog"):
