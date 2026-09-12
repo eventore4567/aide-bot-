@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import discord
 
-# V56 réduit volontairement la surface visible. Une fonction importante = un
-# endroit clair. Les diagnostics, guides, IA et escalade support vivent désormais
-# dans le même Centre d'aide au lieu d'occuper plusieurs salons presque identiques.
+# V57 garde la surface visible compacte : chaque salon permanent a un seul rôle
+# produit clairement différent. Les fonctions transverses passent par des panneaux
+# et menus au lieu de multiplier les salons qui se ressemblent.
 ROLE_SPECS = [
     ("👑・Direction", 0xF1C40F, dict(manage_channels=True, manage_roles=True, manage_messages=True)),
     ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True)),
@@ -15,6 +15,7 @@ ROLE_SPECS = [
     ("💎・VIP", 0xEB459E, dict()),
     ("🛡️・Expert Sécurité", 0xE74C3C, dict()),
     ("🤖・Expert Bots", 0x9B59B6, dict()),
+    ("🔔・Notifications", 0x99AAB5, dict()),
     ("👤・Membre", 0x95A5A6, dict()),
 ]
 
