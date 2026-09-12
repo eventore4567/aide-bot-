@@ -35,7 +35,7 @@ def test_panel_first_server_structure_is_compact_and_distinct():
     assert "👋・bienvenue" in channels
     assert "🎓・centre-aide" in channels
     assert "🎓・formations" in channels
-    assert "🎥・videos-guides" in channels
+    assert "🤖・assistant-aide" in channels
     assert "🛒・shop" in channels
     assert "🎫・ouvrir-ticket" in channels
     assert CENTER_CHANNEL == "🎓・centre-aide"
@@ -77,7 +77,7 @@ def test_pruner_handles_groups_without_type_attribute():
             self.commands = [
                 SimpleNamespace(name="setup", type="slash"),
                 SimpleNamespace(name="buy", type="slash"),
-                SimpleNamespace(name="formation"),  # app_commands.Group shape
+                SimpleNamespace(name="formation"),
                 SimpleNamespace(name="sante", type="slash"),
             ]
             self.removed = []

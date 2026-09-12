@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("aidebot")
 
 # Les moteurs historiques conservent les tickets, paiements, formations et
-# services Premium. V51 simplifie seulement l'expérience publique : moins de
-# boutons, un centre d'aide fiable et des écrans orientés membre.
+# services Premium. V51 simplifie l'expérience publique et V52 ajoute un
+# assistant IA spécialisé ainsi que Guardian pour l'audit et le drift serveur.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -32,6 +32,7 @@ EXTENSIONS = (
     "aidebot.cogs.premium_service_v50_runtime",
     "aidebot.cogs.premium_service_v48_runtime",
     "aidebot.cogs.product_experience_v51",
+    "aidebot.cogs.assistant_guardian_v52",
     "aidebot.cogs.ticket_polish_v44",
     "aidebot.cogs.ticket_recovery",
     "aidebot.cogs.community",
@@ -44,6 +45,7 @@ EXTENSIONS = (
     "aidebot.cogs.health",
     "aidebot.cogs.admin",
     "aidebot.cogs.setup_server",
+    "aidebot.cogs.assistant_guardian_setup_v52",
     "aidebot.cogs.setup_polish_v43",
     "aidebot.cogs.ops_dashboard",
 )
@@ -110,7 +112,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot • aide, formations & support"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot • Assistant IA & Guardian"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
