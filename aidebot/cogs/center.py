@@ -174,6 +174,17 @@ class CenterView(HelpCenterV46View):
         super().__init__(cog.bot)
         self.cog = cog
 
+        # Compatibilité avec le dashboard V44 : on garde exactement les cinq
+        # raccourcis principaux. Les choix supplémentaires vivent dans le menu
+        # de 14 sujets, ce qui évite un mur de boutons.
+        for item in list(self.children):
+            if not isinstance(item, discord.ui.Button):
+                continue
+            if item.label in {"Candidatures", "Statut Premium"}:
+                self.remove_item(item)
+            elif item.label == "Support / Tickets":
+                item.label = "Support intelligent"
+
 
 class CenterCog(commands.Cog, name="CenterCog"):
     def __init__(self, bot: commands.Bot) -> None:
