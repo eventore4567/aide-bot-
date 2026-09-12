@@ -10,6 +10,12 @@ from aidebot.experience_content import BANNER_URL
 from aidebot.setup_guard import canonical_collisions
 
 
+OBSOLETE_CENTER_TITLES = {
+    "Aide Bot — Centre d’aide & formations",
+    "Aide Bot — Ton centre de contrôle",
+}
+
+
 def _training_embed_v44(self: SetupServerCog) -> discord.Embed:
     e = training_catalog_embed()
     e.title = "Aide Bot — Formations & parcours"
@@ -87,7 +93,32 @@ def _quality_snapshot(guild: discord.Guild) -> tuple[int, int, int, list[str]]:
     return role_ok, category_ok, channel_ok, missing
 
 
-def _setup_success_embed(guild: discord.Guild) -> discord.Embed:
+async def _remove_obsolete_center_panels(bot: commands.Bot, guild: discord.Guild) -> int:
+    """Remove old center panels after V44 has published the canonical dashboard."""
+    if bot.user is None:
+        return 0
+    channel = discord.utils.get(guild.text_channels, name="🎓・centre-aide")
+    if channel is None:
+        return 0
+    removed = 0
+    try:
+        async for message in channel.history(limit=100):
+            if message.author.id != bot.user.id:
+                continue
+            titles = {embed.title for embed in message.embeds if embed.title}
+            if not titles.intersection(OBSOLETE_CENTER_TITLES):
+                continue
+            try:
+                await message.delete(reason="Aide Bot V44 — suppression ancien panneau centre")
+                removed += 1
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+    except (discord.Forbidden, discord.HTTPException):
+        return removed
+    return removed
+
+
+def _setup_success_embed(guild: discord.Guild, *, removed_legacy: int = 0) -> discord.Embed:
     role_ok, category_ok, channel_ok, missing = _quality_snapshot(guild)
     expected_roles = len(ROLE_SPECS)
     expected_categories = len(CATEGORY_SPECS)
@@ -121,6 +152,8 @@ def _setup_success_embed(guild: discord.Guild) -> discord.Embed:
         ),
         inline=False,
     )
+    if removed_legacy:
+        e.add_field(name="Nettoyage V44", value=f"**{removed_legacy}** ancien(s) panneau(x) du centre supprimé(s) pour éviter les doublons.", inline=False)
     if missing:
         e.add_field(name="À corriger", value="\n".join(f"• {item}" for item in missing[:12]), inline=False)
     else:
@@ -168,9 +201,13 @@ class SetupPolishV43Cog(commands.Cog):
             )
             if not allowed_user or not required_ok or collisions:
                 return
+            removed_legacy = await _remove_obsolete_center_panels(self.bot, guild)
             try:
                 if interaction.response.is_done():
-                    await interaction.followup.send(embed=_setup_success_embed(guild), ephemeral=True)
+                    await interaction.followup.send(
+                        embed=_setup_success_embed(guild, removed_legacy=removed_legacy),
+                        ephemeral=True,
+                    )
             except (discord.HTTPException, discord.NotFound):
                 pass
 
