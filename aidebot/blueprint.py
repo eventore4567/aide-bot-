@@ -18,12 +18,23 @@ ROLE_SPECS = [
     ("👤・Membre", 0x95A5A6, dict()),
 ]
 
-# V52 garde 15 salons permanents : l'ancien salon vidéo public est remplacé
-# par un assistant d'aide spécialisé. Les tutoriels restent accessibles depuis
-# le Centre d'aide et l'espace Premium sans monopoliser un salon supplémentaire.
+# V54 ajoute seulement deux salons d'aide, chacun avec une fonction différente :
+# - aide-rapide = diagnostic guidé par symptôme ;
+# - guides = bibliothèque structurée de solutions.
+# L'assistant IA reste séparé pour les questions libres, afin de ne pas créer
+# plusieurs boutons qui font la même chose.
 CATEGORY_SPECS = [
     ("━━ INFORMATIONS ━━", ["👋・bienvenue", "📜・règlement", "📢・annonces"]),
-    ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🤖・assistant-aide", "🎓・formations"]),
+    (
+        "━━ AIDE & FORMATIONS ━━",
+        [
+            "🎓・centre-aide",
+            "🆘・aide-rapide",
+            "🤖・assistant-aide",
+            "📚・guides",
+            "🎓・formations",
+        ],
+    ),
     ("━━ BOUTIQUE ━━", ["🛒・shop"]),
     ("━━ PREMIUM ━━", ["💎・espace-premium", "🎬・videos-premium"]),
     ("━━ SERVICES ━━", ["🎫・ouvrir-ticket", "⭐・avis", "🧑‍🏫・recrutement"]),
@@ -31,7 +42,7 @@ CATEGORY_SPECS = [
 ]
 
 PERMANENT_CHANNEL_COUNT = sum(len(channels) for _, channels in CATEGORY_SPECS)
-assert PERMANENT_CHANNEL_COUNT <= 15
+assert PERMANENT_CHANNEL_COUNT <= 17
 
 
 def role_permissions(spec: dict[str, bool]) -> discord.Permissions:
