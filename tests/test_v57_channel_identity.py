@@ -62,7 +62,8 @@ def test_v57_copy_makes_channel_jobs_visibly_different():
 
     titles = {item.title for item in (rules, announcements, reviews, logs, followup)}
     assert len(titles) == 5
-    assert "validation" in " ".join(field.value for field in rules.fields).casefold()
+    rule_copy = " ".join(f"{field.name} {field.value}" for field in rules.fields).casefold()
+    assert "validation" in rule_copy and "rôle membre" in rule_copy
     assert "notifications" in (announcements.description or "").casefold()
     assert "terminée" in (reviews.description or "").casefold()
     assert "journal" in (logs.description or "").casefold()
