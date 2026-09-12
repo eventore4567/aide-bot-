@@ -13,6 +13,9 @@ from aidebot.cogs.premium_service_v48 import (
     premium_v48_hub_embed,
     server_templates_v48_embed,
 )
+# The runtime cleanup intentionally keeps V48 service-only routes out of the
+# public classic training catalog while preserving the V48 service dictionaries.
+import aidebot.cogs.premium_service_v48_runtime  # noqa: F401,E402
 from main import EXTENSIONS, PUBLIC_SLASH_COMMANDS
 
 
@@ -23,9 +26,14 @@ class DummyBot:
         return None
 
 
+def _embed_text(embed: discord.Embed) -> str:
+    fields = "\n".join(f"{field.name}\n{field.value}" for field in embed.fields)
+    return ((embed.description or "") + "\n" + fields).casefold()
+
+
 def test_v48_premium_is_presented_as_a_real_service_center():
     embed = premium_v48_hub_embed(2000)
-    text = ((embed.description or "") + "\n" + "\n".join(field.value for field in embed.fields)).casefold()
+    text = _embed_text(embed)
     assert "2000 robux" in text
     assert "diagnostic" in text
     assert "audit" in text
@@ -86,7 +94,7 @@ def test_v48_server_builder_has_preflight_and_explicit_confirmation():
 
 def test_v48_shop_exposes_value_before_purchase():
     embed = premium_shop_embed(2000)
-    text = ((embed.description or "") + "\n" + "\n".join(field.value for field in embed.fields)).casefold()
+    text = _embed_text(embed)
     assert "2000 robux" in text
     assert "audit" in text
     assert "construction" in text
@@ -112,7 +120,9 @@ def test_v48_hub_has_services_audit_videos_and_member_space():
 
 def test_v48_replaces_v47_runtime_without_expanding_slash_surface():
     assert "aidebot.cogs.premium_service_v48" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v48_runtime" in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47_runtime" not in EXTENSIONS
     assert EXTENSIONS.index("aidebot.cogs.premium_service_v48") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v48")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
