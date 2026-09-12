@@ -32,8 +32,10 @@ def _channel_names():
     return [name for _category, names in CATEGORY_SPECS for name in names]
 
 
-def test_v60_loads_last_and_keeps_only_two_public_slash_commands():
-    assert EXTENSIONS[-1] == "aidebot.cogs.product_suite_v60"
+def test_v60_runtime_is_preserved_before_v61_and_keeps_only_two_public_slash_commands():
+    assert "aidebot.cogs.product_suite_v60" in EXTENSIONS
+    assert "aidebot.cogs.enterprise_academy_v61" in EXTENSIONS
+    assert EXTENSIONS.index("aidebot.cogs.enterprise_academy_v61") > EXTENSIONS.index("aidebot.cogs.product_suite_v60")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
 
 
