@@ -3,30 +3,17 @@ from __future__ import annotations
 import discord
 from discord.ext import commands
 
-from aidebot.cogs.center import (
-    CenterView,
-    GuideIndexView,
-    PremiumView,
-    center_embed,
-    guide_index_embed,
-    premium_embed,
-)
-from aidebot.cogs.experience_v43 import (
-    TicketPortalView,
-    VideoLibraryView,
-    member_space_embed,
-    video_home_embed,
-)
+from aidebot.cogs.center import CenterView, GuideIndexView, center_embed, guide_index_embed, premium_embed
+from aidebot.cogs.experience_v43 import VideoLibraryView, member_space_embed, video_home_embed
+from aidebot.cogs.experience_v44 import SmartSupportView
 from aidebot.cogs.training import PremiumPurchaseModal, TrainingPanel, TrainingSelect
 from aidebot.cogs.training_experience_v42 import V42TrainingSelect
 from aidebot.experience_content import BANNER_URL
 from aidebot.premium_access import has_premium
 from aidebot.ux_text import missing_premium_embed, premium_member_embed
 
-
-# Compatibilité avec les anciens messages persistants déjà publiés.
-# Ils gardent leur custom_id historique, mais ouvrent maintenant l’expérience
-# détaillée V42/V43 au lieu du formulaire générique d’origine.
+# Compatibilité des anciens panneaux persistants : ils gardent leur custom_id,
+# mais utilisent l'expérience de formation détaillée moderne.
 TrainingSelect.callback = V42TrainingSelect.callback
 
 
@@ -37,10 +24,9 @@ def _modern_training_panel_init(self: TrainingPanel, cog: commands.Cog) -> None:
 
 TrainingPanel.__init__ = _modern_training_panel_init
 
-
 WELCOME_TITLE = "Bienvenue — Aide Bot"
 SHOP_TITLE = "Aide Bot — Boutique Premium"
-TICKET_TITLE = "Aide Bot — Centre de support"
+TICKET_TITLE = "Aide Bot — Support intelligent"
 VIDEOS_TITLE = "Aide Bot — Bibliothèque vidéo"
 
 
@@ -49,68 +35,30 @@ def welcome_embed() -> discord.Embed:
         title=WELCOME_TITLE,
         description=(
             "Bienvenue sur **Aide Bot**. Ce salon **sert uniquement à t’accueillir** et à t’orienter. "
-            "Tu n’as pas besoin de retenir une liste de commandes : le serveur fonctionne comme un vrai produit, avec des panneaux, menus et formulaires.\n\n"
-            "**Apprendre gratuitement** → `🎓・centre-aide`\n"
-            "**Suivre une formation structurée** → `🎓・formations`\n"
-            "**Regarder des tutoriels classés** → `🎥・videos-guides`\n"
-            "**Résoudre un problème précis** → `🎫・ouvrir-ticket`\n"
-            "**Activer Premium** → `🛒・shop` ou `/buy`"
+            "Le serveur fonctionne comme un vrai service : tu cliques sur ton besoin et le bot t’emmène directement au bon parcours.\n\n"
+            "**Centre d’aide** → `🎓・centre-aide` pour guides, support, vidéos, espace personnel et Premium.\n"
+            "**Formations** → `🎓・formations` pour les parcours détaillés avant inscription.\n"
+            "**Support** → `🎫・ouvrir-ticket` pour le diagnostic rapide avant création d’un ticket.\n"
+            "**Boutique** → `🛒・shop`, seul endroit où acheter Premium."
         ),
         color=0x5865F2,
     )
-    e.add_field(
-        name="Ton parcours est simple",
-        value=(
-            "**1.** Choisis ton besoin.  **2.** Lis la fiche ou remplis le formulaire adapté.  **3.** Le bot crée le bon espace.  "
-            "**4.** Le staff suit la demande jusqu’au résultat."
-        ),
-        inline=False,
-    )
-    e.add_field(
-        name="Sécurité",
-        value="Ne partage jamais de token, mot de passe, cookie, code 2FA ou code de récupération. Aide Bot n’en a jamais besoin pour t’aider.",
-        inline=False,
-    )
+    e.add_field(name="Le parcours idéal", value="**Comprendre → diagnostiquer → agir → suivre le résultat.** Tu n’as pas besoin de retenir des dizaines de commandes.", inline=False)
+    e.add_field(name="Sécurité", value="Ne partage jamais token, mot de passe, cookie, code 2FA ou code de récupération. Aucun Helper ou Formateur n’en a besoin.", inline=False)
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot V43 • Un espace = une fonction • Navigation sans commandes inutiles")
+    e.set_footer(text="Aide Bot V44 • Un besoin → un parcours clair")
     return e
 
 
 def shop_embed(price_robux: int) -> discord.Embed:
-    e = discord.Embed(
-        title=SHOP_TITLE,
-        description=(
-            f"**Aide Bot Premium — {price_robux} Robux**\n"
-            "Premium ne remplace pas le gratuit : il ajoute un **accompagnement humain personnalisé**, les parcours avancés et les audits.\n\n"
-            "L’achat se fait **uniquement dans cette boutique ou avec `/buy`**. Tous les autres boutons Premium servent seulement à utiliser un abonnement déjà actif."
-        ),
-        color=0x9B59B6,
-    )
-    e.add_field(
-        name="Inclus avec Premium",
-        value=(
-            "**Accompagnement sur mesure**\nDiagnostic du projet, plan d’action, suivi et vérification finale.\n\n"
-            "**Parcours avancés**\nServeur professionnel, bot avancé, sécurité et audit."
-        ),
-        inline=True,
-    )
-    e.add_field(
-        name="Activation automatique",
-        value=(
-            "**1.** Acheter\n**2.** Ticket privé\n**3.** Validation Direction\n"
-            "**4.** Rôle `💎・VIP` automatique\n**5.** Accès Premium débloqué"
-        ),
-        inline=True,
-    )
-    e.add_field(
-        name="Avant de payer",
-        value=(
-            "Le prix et la formule sont affichés avant l’ouverture du ticket. Aucun mot de passe, token, cookie, code 2FA ou code de récupération ne doit être envoyé."
-        ),
-        inline=False,
-    )
-    e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot V43 • Boutique = seul point d’achat • VIP attribué après validation")
+    e = premium_embed(price_robux)
+    e.title = SHOP_TITLE
+    e.description = (
+        f"**Premium — {price_robux} Robux**\n"
+        "La boutique est le **seul point d’achat**. Les autres boutons Premium du serveur servent uniquement à utiliser un abonnement déjà actif.\n\n"
+        + (e.description or "")
+    )[:4000]
+    e.set_footer(text="Aide Bot V44 • Achat uniquement ici ou avec /buy • Activation après validation")
     return e
 
 
@@ -118,42 +66,24 @@ def ticket_embed() -> discord.Embed:
     e = discord.Embed(
         title=TICKET_TITLE,
         description=(
-            "Ici tu ne remplis plus un formulaire générique pour tout. **Choisis d’abord le type de problème** : Discord, serveur/permissions, bot/code, sécurité ou autre. "
-            "Aide Bot adapte ensuite les questions au sujet et crée un ticket privé déjà compréhensible par le staff."
+            "Ici, Aide Bot ne crée plus immédiatement un salon vide. **Choisis d’abord le type de problème** : Discord, serveur/permissions, bot/code, sécurité ou autre. "
+            "Le bot te montre ensuite une checklist de diagnostic. Si ça ne suffit pas, tu ouvres le formulaire adapté et le ticket contient déjà le bon contexte."
         ),
         color=0x3498DB,
     )
-    e.add_field(
-        name="Comment ça marche ?",
-        value=(
-            "**1.** Choisis une catégorie dans le menu.\n"
-            "**2.** Remplis le formulaire adapté.\n"
-            "**3.** Un ticket privé est créé avec ton contexte et ton objectif.\n"
-            "**4.** Un seul membre du staff le prend en charge.\n"
-            "**5.** La progression est suivie jusqu’à la résolution."
-        ),
-        inline=True,
-    )
-    e.add_field(
-        name="Premium",
-        value=(
-            "Le bouton Premium de ce panneau est réservé aux membres avec `💎・VIP`. Pour acheter l’abonnement, va dans `🛒・shop` ou utilise `/buy`."
-        ),
-        inline=True,
-    )
-    e.add_field(
-        name="À préparer",
-        value="Résultat attendu • erreur exacte • contexte • ce que tu as essayé • disponibilités • capture utile si nécessaire.",
-        inline=False,
-    )
+    e.add_field(name="Étapes", value="**1.** Choisis une catégorie.\n**2.** Vérifie la checklist rapide.\n**3.** Regarde la vidéo recommandée si utile.\n**4.** Si le problème continue, ouvre le formulaire.\n**5.** Un seul membre du staff prend le ticket et le suit jusqu’au résultat.", inline=False)
+    e.add_field(name="Premium", value="Le bouton Premium est réservé aux membres `💎・VIP`. Pour acheter l’abonnement, utilise `🛒・shop` ou `/buy`.", inline=True)
+    e.add_field(name="Jamais dans un ticket", value="Token • mot de passe • cookie • code 2FA • code de récupération • information bancaire.", inline=True)
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot V43 • Catégorie → formulaire adapté → ticket clair → suivi")
+    e.set_footer(text="Aide Bot V44 • Diagnostic → formulaire adapté → ticket clair → suivi")
     return e
 
 
 def videos_panel_embed() -> discord.Embed:
     e = video_home_embed()
     e.title = VIDEOS_TITLE
+    e.description = ("Les vidéos sont rangées par **catégories** pour éviter un mur de liens. Choisis le sujet, puis ouvre uniquement les ressources utiles.\n\n" + (e.description or ""))[:4000]
+    e.set_footer(text="Aide Bot V44 • Catégorie → sélection courte → application pratique")
     return e
 
 
@@ -162,7 +92,7 @@ class WelcomeView(discord.ui.View):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.button(label="Centre d’aide", style=discord.ButtonStyle.primary, custom_id="aidebot:welcome:center")
+    @discord.ui.button(label="Ouvrir le centre", style=discord.ButtonStyle.primary, custom_id="aidebot:welcome:center")
     async def center(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         cog = interaction.client.get_cog("CenterCog")
         if cog is None:
@@ -207,7 +137,7 @@ class ShopView(discord.ui.View):
         shop = interaction.channel if isinstance(interaction.channel, discord.TextChannel) else None
         await interaction.response.send_message(embed=missing_premium_embed(shop), ephemeral=True)
 
-    @discord.ui.button(label="Ce qui est inclus", style=discord.ButtonStyle.secondary, custom_id="aidebot:shop:details")
+    @discord.ui.button(label="Comparer Free / Premium", style=discord.ButtonStyle.secondary, custom_id="aidebot:shop:details")
     async def details(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await interaction.response.send_message(embed=premium_embed(self.bot.settings.vip_price_robux), ephemeral=True)
 
@@ -216,7 +146,7 @@ class ShopView(discord.ui.View):
         await interaction.response.send_message(embed=guide_index_embed(), view=GuideIndexView(), ephemeral=True)
 
 
-class TicketEntryView(TicketPortalView):
+class TicketEntryView(SmartSupportView):
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__(bot)
 
