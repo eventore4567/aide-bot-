@@ -33,14 +33,16 @@ def test_v43_welcome_is_short_and_action_oriented():
     assert embed.image.url
 
 
-def test_v43_center_is_a_dashboard_with_six_actions_max():
+def test_v44_center_is_dashboard_first_with_smart_navigation():
     embed = center_embed(100)
-    assert "centre de contrôle" in (embed.title or "").casefold()
+    assert "tableau de bord" in (embed.title or "").casefold()
     view = CenterView(DummyCenterCog())
     buttons = [item for item in view.children if isinstance(item, discord.ui.Button)]
-    assert 5 <= len(buttons) <= 6
+    selects = [item for item in view.children if isinstance(item, discord.ui.Select)]
+    assert len(buttons) == 5
+    assert len(selects) == 1
     labels = {button.label for button in buttons}
-    assert {"Guides gratuits", "Formations", "Support", "Vidéos", "Mon espace", "Premium"}.issubset(labels)
+    assert {"Formations", "Support intelligent", "Vidéos", "Mon espace", "Premium"}.issubset(labels)
 
 
 def test_v43_ticket_portal_triages_before_opening_ticket():
