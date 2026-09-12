@@ -68,9 +68,10 @@ def test_v53_backup_store_rotates_and_never_claims_message_content(tmp_path):
     asyncio.run(scenario())
 
 
-def test_v53_backend_remains_testable_but_dashboard_runtime_is_removed_in_v54():
+def test_v53_backend_remains_testable_but_dashboard_runtime_stays_removed():
     assert "aidebot.cogs.owner_console_v53" not in EXTENSIONS
     assert "aidebot.cogs.ops_dashboard" not in EXTENSIONS
     assert "aidebot.cogs.assistant_guardian_setup_v52" in EXTENSIONS
-    assert "aidebot.cogs.help_system_v54" in EXTENSIONS
+    assert "aidebot.cogs.help_system_v54" not in EXTENSIONS
+    assert "aidebot.cogs.experience_v56" in EXTENSIONS
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
