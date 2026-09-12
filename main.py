@@ -13,9 +13,9 @@ from aidebot.integrity_db import IntegrityDatabase
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("aidebot")
 
-# Les cogs historiques conservent les workers, transactions, logs et vues
-# persistantes. V50 finalise Premium Elite à 10 000 Robux avec cahier des
-# charges, une mission active à la fois, audit 360° et validation client.
+# Les moteurs historiques conservent les tickets, paiements, formations et
+# services Premium. V51 simplifie seulement l'expérience publique : moins de
+# boutons, un centre d'aide fiable et des écrans orientés membre.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -31,6 +31,7 @@ EXTENSIONS = (
     "aidebot.cogs.ticket_experience",
     "aidebot.cogs.premium_service_v50_runtime",
     "aidebot.cogs.premium_service_v48_runtime",
+    "aidebot.cogs.product_experience_v51",
     "aidebot.cogs.ticket_polish_v44",
     "aidebot.cogs.ticket_recovery",
     "aidebot.cogs.community",
@@ -109,7 +110,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot V50 • Premium Elite • /setup • /buy"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot • aide, formations & support"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 

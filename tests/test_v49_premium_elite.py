@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from types import SimpleNamespace
 
 import discord
@@ -14,7 +13,6 @@ from aidebot.cogs.premium_service_v49 import (
     V49_PREMIUM_SERVICES,
     V49_SERVER_TEMPLATES,
     _score_label,
-    analyze_360,
     premium_shop_embed,
     premium_v49_hub_embed,
     server_templates_v49_embed,
@@ -34,11 +32,11 @@ def _embed_text(embed: discord.Embed) -> str:
     return ((embed.description or "") + "\n" + "\n".join(f"{field.name}\n{field.value}" for field in embed.fields)).casefold()
 
 
-def test_v49_price_is_10000_by_default(monkeypatch):
+def test_v49_historical_elite_constant_is_preserved_but_product_default_is_restored(monkeypatch):
     monkeypatch.delenv("VIP_PRICE_ROBUX", raising=False)
     monkeypatch.setenv("DISCORD_TOKEN", "dummy")
     settings = Settings.from_env()
-    assert settings.vip_price_robux == 10_000
+    assert settings.vip_price_robux == 2_000
     assert ELITE_PRICE_ROBUX == 10_000
 
 
@@ -108,12 +106,12 @@ def test_v49_score_labels_are_clear():
     assert _score_label(30) == "Prioritaire"
 
 
-def test_v49_is_compatibility_layer_while_v50_owns_runtime():
+def test_v49_is_compatibility_layer_while_v51_owns_public_experience():
     assert "aidebot.cogs.premium_service_v50_runtime" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v48_runtime" in EXTENSIONS
+    assert "aidebot.cogs.product_experience_v51" in EXTENSIONS
     assert "aidebot.cogs.premium_service_v50" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v49" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48" not in EXTENSIONS
-    assert "aidebot.cogs.premium_service_v48_runtime" in EXTENSIONS
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v50_runtime") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v50_runtime")
+    assert EXTENSIONS.index("aidebot.cogs.product_experience_v51") > EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
