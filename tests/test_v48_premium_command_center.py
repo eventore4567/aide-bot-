@@ -119,12 +119,13 @@ def test_v48_hub_has_services_audit_videos_and_member_space():
 
 
 def test_v48_is_kept_for_compatibility_but_v50_owns_runtime():
-    assert "aidebot.cogs.premium_service_v50" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v50_runtime" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v50" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v49" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48_runtime" in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47_runtime" not in EXTENSIONS
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v50") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v50")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v50_runtime") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v50_runtime")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
