@@ -36,7 +36,7 @@ def test_v47_premium_is_a_real_service_pack():
     assert len(PREMIUM_SERVICE_FORMS) >= 7
 
 
-def test_v47_original_server_templates_remain_available_under_v49():
+def test_v47_original_server_templates_remain_available_under_v50():
     original = {"community", "gaming", "shop", "creator", "support"}
     assert original.issubset(SERVER_TEMPLATES)
     for key in original:
@@ -98,8 +98,10 @@ def test_v47_shop_still_exists_as_compatibility_layer():
     assert "Acheter Premium" in labels
 
 
-def test_v47_is_superseded_by_v49_without_more_public_commands():
-    assert "aidebot.cogs.premium_service_v49" in EXTENSIONS
+def test_v47_is_superseded_by_v50_without_more_public_commands():
+    assert "aidebot.cogs.premium_service_v50_runtime" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v50" not in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v49" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47_runtime" not in EXTENSIONS
