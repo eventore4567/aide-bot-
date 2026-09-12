@@ -20,6 +20,25 @@ class AssistantGuardianSetupV52Cog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+    async def cog_load(self) -> None:
+        # Le setup historique tente encore de publier le panneau vidéo public.
+        # V52 a volontairement remplacé ce salon par l'assistant IA afin de
+        # conserver seulement 15 salons permanents. On marque donc ce panneau
+        # comme remplacé au lieu de faire apparaître un faux échec dans /setup.
+        from aidebot.cogs.setup_server import SetupServerCog
+        from aidebot.public_panels import VIDEOS_TITLE
+
+        if not getattr(SetupServerCog, "_aidebot_v52_video_replaced", False):
+            original_upsert = SetupServerCog._upsert_panel
+
+            async def upsert(self, channel, embed, view=None):
+                if channel is None and getattr(embed, "title", None) == VIDEOS_TITLE:
+                    return "replaced_by_ai"
+                return await original_upsert(self, channel, embed, view)
+
+            SetupServerCog._upsert_panel = upsert
+            SetupServerCog._aidebot_v52_video_replaced = True
+
     def _core(self):
         return self.bot.get_cog("AssistantGuardianV52Cog")
 
