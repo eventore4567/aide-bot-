@@ -19,7 +19,7 @@ def test_v45_adds_private_premium_rooms_without_channel_bloat():
     categories = dict(CATEGORY_SPECS)
     assert PREMIUM_CATEGORY in categories
     assert categories[PREMIUM_CATEGORY] == [PREMIUM_HUB_CHANNEL, PREMIUM_VIDEO_CHANNEL]
-    assert PERMANENT_CHANNEL_COUNT == 15
+    assert PERMANENT_CHANNEL_COUNT == 17
 
 
 def test_premium_video_library_is_large_and_search_based():
