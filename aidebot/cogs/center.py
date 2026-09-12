@@ -19,7 +19,9 @@ PREMIUM = 0x9B59B6
 
 
 def center_embed(vip_price: int) -> discord.Embed:
-    return help_center_embed(vip_price)
+    e = help_center_embed(vip_price)
+    e.title = "Aide Bot — Centre d’aide • Tableau de bord"
+    return e
 
 
 def guide_index_embed() -> discord.Embed:
