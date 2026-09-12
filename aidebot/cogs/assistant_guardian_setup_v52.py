@@ -42,33 +42,34 @@ class AssistantGuardianSetupV52Cog(commands.Cog):
     def _core(self):
         return self.bot.get_cog("AssistantGuardianV52Cog")
 
-    async def _configure_ai_channel(self, channel: discord.TextChannel) -> None:
+    async def _configure_ai_channel(self, channel: discord.TextChannel, *, apply_permissions: bool) -> None:
         core = self._core()
         if core is None:
             return
         guild = channel.guild
-        try:
-            await channel.set_permissions(
-                guild.default_role,
-                view_channel=True,
-                send_messages=False,
-                read_message_history=True,
-                reason="Aide Bot V52 — panneau Assistant IA en lecture seule",
-            )
-            for role_name in ("👑・Direction", "📘・Responsable Formation", "🎓・Formateur", "🤝・Helper"):
-                role = discord.utils.get(guild.roles, name=role_name)
-                if role is None:
-                    continue
+        if apply_permissions:
+            try:
                 await channel.set_permissions(
-                    role,
+                    guild.default_role,
                     view_channel=True,
-                    send_messages=True,
+                    send_messages=False,
                     read_message_history=True,
-                    manage_messages=role_name in {"👑・Direction", "📘・Responsable Formation"},
-                    reason="Aide Bot V52 — accès équipe au salon Assistant IA",
+                    reason="Aide Bot V52 — panneau Assistant IA en lecture seule",
                 )
-        except (discord.Forbidden, discord.HTTPException):
-            pass
+                for role_name in ("👑・Direction", "📘・Responsable Formation", "🎓・Formateur", "🤝・Helper"):
+                    role = discord.utils.get(guild.roles, name=role_name)
+                    if role is None:
+                        continue
+                    await channel.set_permissions(
+                        role,
+                        view_channel=True,
+                        send_messages=True,
+                        read_message_history=True,
+                        manage_messages=role_name in {"👑・Direction", "📘・Responsable Formation"},
+                        reason="Aide Bot V52 — accès équipe au salon Assistant IA",
+                    )
+            except (discord.Forbidden, discord.HTTPException):
+                pass
         await _cleanup_legacy_video_panel(self.bot, channel)
         await _upsert_panel(
             self.bot,
@@ -86,7 +87,10 @@ class AssistantGuardianSetupV52Cog(commands.Cog):
     async def _reconcile(self, guild: discord.Guild) -> None:
         ai_channel = discord.utils.get(guild.text_channels, name=AI_CHANNEL)
         if ai_channel is not None:
-            await self._configure_ai_channel(ai_channel)
+            # Un salon déjà existant vient généralement de l'ancien salon vidéo,
+            # qui était déjà en lecture seule. Ne réécris pas ses overwrites au
+            # démarrage : cela éviter de créer un faux drift Guardian.
+            await self._configure_ai_channel(ai_channel, apply_permissions=False)
         staff = discord.utils.get(guild.text_channels, name=STAFF_CHANNEL)
         if staff is not None:
             await self._configure_staff_panel(staff)
@@ -101,7 +105,7 @@ class AssistantGuardianSetupV52Cog(commands.Cog):
         if not isinstance(channel, discord.TextChannel):
             return
         if channel.name == AI_CHANNEL:
-            await self._configure_ai_channel(channel)
+            await self._configure_ai_channel(channel, apply_permissions=True)
         elif channel.name == STAFF_CHANNEL:
             await self._configure_staff_panel(channel)
 
@@ -110,7 +114,9 @@ class AssistantGuardianSetupV52Cog(commands.Cog):
         if not isinstance(after, discord.TextChannel):
             return
         if before.name == LEGACY_VIDEO_CHANNEL and after.name == AI_CHANNEL:
-            await self._configure_ai_channel(after)
+            # L'ancien salon vidéo était déjà public en lecture seule ; garde ses
+            # permissions pendant la migration et remplace seulement son panneau.
+            await self._configure_ai_channel(after, apply_permissions=False)
 
 
 async def setup(bot: commands.Bot) -> None:
