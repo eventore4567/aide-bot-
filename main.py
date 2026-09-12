@@ -14,14 +14,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("aidebot")
 
 # Les cogs historiques conservent les workers, transactions, logs et vues
-# persistantes. V44 place une expérience produit au-dessus de cette base :
-# dashboard unique, support avec diagnostic, tickets lisibles, formations
-# détaillées et setup avec contrôle de qualité. La surface publique reste
-# volontairement minimale.
+# persistantes. V45 garde l'expérience produit V44 et ajoute un espace Premium
+# privé avec vidéos avancées et accompagnement sans agrandir la surface slash.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
     "aidebot.cogs.experience_v44",
+    "aidebot.cogs.premium_v45",
     "aidebot.cogs.member_experience",
     "aidebot.cogs.command_cleanup",
     "aidebot.cogs.center",
@@ -107,7 +106,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot V44 • /setup • /buy"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot V45 • /setup • /buy"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
