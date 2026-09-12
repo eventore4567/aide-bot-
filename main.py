@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("aidebot")
 
 # Les moteurs historiques conservent tickets, paiements, formations, Premium,
-# Assistant IA et Guardian. V54 retire les dashboards et transforme surtout le
-# système d'aide : orientation, diagnostic rapide, guides et escalade propre.
+# Assistant IA et Guardian. Le système d'aide V54 reste compact et /setup V55
+# devient l'installateur/réparateur canonique, avec préflight et snapshot.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -48,6 +48,7 @@ EXTENSIONS = (
     "aidebot.cogs.assistant_guardian_setup_v52",
     "aidebot.cogs.help_system_v54",
     "aidebot.cogs.setup_polish_v43",
+    "aidebot.cogs.setup_experience_v55",
 )
 
 PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
