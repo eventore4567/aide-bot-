@@ -15,8 +15,9 @@ log = logging.getLogger("aidebot")
 
 # Les cogs historiques conservent les workers, transactions, logs et vues
 # persistantes. V44 place une expérience produit au-dessus de cette base :
-# dashboard unique, support avec diagnostic, formations détaillées et setup
-# avec contrôle de qualité. La surface publique reste volontairement minimale.
+# dashboard unique, support avec diagnostic, tickets lisibles, formations
+# détaillées et setup avec contrôle de qualité. La surface publique reste
+# volontairement minimale.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -28,6 +29,7 @@ EXTENSIONS = (
     "aidebot.cogs.storefront",
     "aidebot.cogs.recruitment_panel",
     "aidebot.cogs.ticket_experience",
+    "aidebot.cogs.ticket_polish_v44",
     "aidebot.cogs.ticket_recovery",
     "aidebot.cogs.community",
     "aidebot.cogs.diagnostic",
