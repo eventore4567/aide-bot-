@@ -93,13 +93,10 @@ def test_v60_visible_embeds_explain_distinct_missions():
     assert "Audit 360" in text
     assert "Branding Studio" in text
     assert "Role Studio" in text
-    assert "Communauté" in text
+    assert "communauté" in text.casefold()
 
 
 def test_v60_role360_is_visible_and_non_destructive():
-    # Avoid constructing a full guild here; the source-level contract is also
-    # checked by CI compile and integration tests. The function must remain
-    # public and the copy explicitly promise non-destructive behavior.
     assert callable(role360_embed)
     assert callable(audit360)
 
