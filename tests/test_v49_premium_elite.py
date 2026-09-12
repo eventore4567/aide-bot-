@@ -109,10 +109,11 @@ def test_v49_score_labels_are_clear():
 
 
 def test_v49_is_compatibility_layer_while_v50_owns_runtime():
-    assert "aidebot.cogs.premium_service_v50" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v50_runtime" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v50" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v49" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48_runtime" in EXTENSIONS
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v50") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v50")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v50_runtime") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v50_runtime")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
