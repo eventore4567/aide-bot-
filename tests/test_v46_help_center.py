@@ -24,7 +24,9 @@ class DummyBot:
 
 def test_v46_center_has_many_real_help_choices():
     embed = center_embed(500)
-    assert embed.title == "Aide Bot — Centre d’aide"
+    title = (embed.title or "").casefold()
+    assert "centre d’aide" in title
+    assert "tableau de bord" in title
     text = ((embed.description or "") + "\n" + "\n".join(field.value for field in embed.fields)).casefold()
     assert "vrai centre d’aide" in text
     assert "13 sujets" in text
@@ -66,17 +68,20 @@ def test_center_view_is_now_v46_help_center():
 def test_recruitment_has_four_specific_tracks_and_five_questions_each():
     assert set(RECRUITMENT_TRACKS) == {"helper", "trainer", "bot_expert", "security_expert"}
     prompts = set()
+    all_labels = []
     for key, data in RECRUITMENT_TRACKS.items():
         assert len(data["questions"]) == 5
         modal = RoleApplicationModal(object(), key)
         assert len(modal.children) == 5
-        prompts.add(tuple(field.label for field in modal.children))
+        labels = tuple(field.label for field in modal.children)
+        prompts.add(labels)
+        all_labels.extend(labels)
     assert len(prompts) == 4
+    assert any("cas pratique" in label.casefold() for label in all_labels)
 
     embed = recruitment_v46_embed()
     text = ((embed.description or "") + "\n" + "\n".join(field.value for field in embed.fields)).casefold()
     assert "questionnaire" in text
-    assert "cas pratique" in text
 
     view = RecruitmentV46View(object())
     assert view.timeout is None
