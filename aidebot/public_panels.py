@@ -36,23 +36,15 @@ def welcome_embed() -> discord.Embed:
         description=(
             "Bienvenue sur **Aide Bot**. Ce salon **sert uniquement à t’accueillir** et à t’orienter. "
             "Le serveur fonctionne comme un vrai service : tu cliques sur ton besoin et le bot t’emmène directement au bon parcours.\n\n"
-            "**Centre d’aide** → guides, formations, support, vidéos, espace personnel et Premium.\n"
-            "**Formations** → parcours détaillés avant inscription.\n"
-            "**Support** → diagnostic rapide avant création d’un ticket.\n"
-            "**Boutique** → seul endroit où acheter Premium."
+            "**Centre d’aide** → `🎓・centre-aide` pour guides, support, vidéos, espace personnel et Premium.\n"
+            "**Formations** → `🎓・formations` pour les parcours détaillés avant inscription.\n"
+            "**Support** → `🎫・ouvrir-ticket` pour le diagnostic rapide avant création d’un ticket.\n"
+            "**Boutique** → `🛒・shop`, seul endroit où acheter Premium."
         ),
         color=0x5865F2,
     )
-    e.add_field(
-        name="Le parcours idéal",
-        value="**Comprendre → diagnostiquer → agir → suivre le résultat.** Tu n’as pas besoin de retenir des dizaines de commandes.",
-        inline=False,
-    )
-    e.add_field(
-        name="Sécurité",
-        value="Ne partage jamais token, mot de passe, cookie, code 2FA ou code de récupération. Aucun Helper ou Formateur n’en a besoin.",
-        inline=False,
-    )
+    e.add_field(name="Le parcours idéal", value="**Comprendre → diagnostiquer → agir → suivre le résultat.** Tu n’as pas besoin de retenir des dizaines de commandes.", inline=False)
+    e.add_field(name="Sécurité", value="Ne partage jamais token, mot de passe, cookie, code 2FA ou code de récupération. Aucun Helper ou Formateur n’en a besoin.", inline=False)
     e.set_image(url=BANNER_URL)
     e.set_footer(text="Aide Bot V44 • Un besoin → un parcours clair")
     return e
@@ -74,32 +66,14 @@ def ticket_embed() -> discord.Embed:
     e = discord.Embed(
         title=TICKET_TITLE,
         description=(
-            "Ici, Aide Bot ne crée plus immédiatement un salon vide. **Tu choisis d’abord ton type de problème**, puis le bot te montre une checklist de diagnostic. "
-            "Si ça ne suffit pas, tu ouvres ensuite le formulaire adapté et le ticket contient déjà le bon contexte."
+            "Ici, Aide Bot ne crée plus immédiatement un salon vide. **Choisis d’abord le type de problème** : Discord, serveur/permissions, bot/code, sécurité ou autre. "
+            "Le bot te montre ensuite une checklist de diagnostic. Si ça ne suffit pas, tu ouvres le formulaire adapté et le ticket contient déjà le bon contexte."
         ),
         color=0x3498DB,
     )
-    e.add_field(
-        name="Étapes",
-        value=(
-            "**1.** Choisis Discord, serveur/permissions, bot/code, sécurité ou autre.\n"
-            "**2.** Vérifie la checklist rapide.\n"
-            "**3.** Regarde la vidéo recommandée si utile.\n"
-            "**4.** Si le problème continue, ouvre le formulaire.\n"
-            "**5.** Un seul membre du staff prend le ticket et le suit jusqu’au résultat."
-        ),
-        inline=False,
-    )
-    e.add_field(
-        name="Premium",
-        value="Le bouton Premium est réservé aux membres `💎・VIP`. Pour acheter l’abonnement, utilise `🛒・shop` ou `/buy`.",
-        inline=True,
-    )
-    e.add_field(
-        name="Jamais dans un ticket",
-        value="Token • mot de passe • cookie • code 2FA • code de récupération • information bancaire.",
-        inline=True,
-    )
+    e.add_field(name="Étapes", value="**1.** Choisis une catégorie.\n**2.** Vérifie la checklist rapide.\n**3.** Regarde la vidéo recommandée si utile.\n**4.** Si le problème continue, ouvre le formulaire.\n**5.** Un seul membre du staff prend le ticket et le suit jusqu’au résultat.", inline=False)
+    e.add_field(name="Premium", value="Le bouton Premium est réservé aux membres `💎・VIP`. Pour acheter l’abonnement, utilise `🛒・shop` ou `/buy`.", inline=True)
+    e.add_field(name="Jamais dans un ticket", value="Token • mot de passe • cookie • code 2FA • code de récupération • information bancaire.", inline=True)
     e.set_image(url=BANNER_URL)
     e.set_footer(text="Aide Bot V44 • Diagnostic → formulaire adapté → ticket clair → suivi")
     return e
@@ -108,10 +82,7 @@ def ticket_embed() -> discord.Embed:
 def videos_panel_embed() -> discord.Embed:
     e = video_home_embed()
     e.title = VIDEOS_TITLE
-    e.description = (
-        "Les vidéos sont rangées par **catégories** pour éviter un mur de liens. Choisis le sujet, puis ouvre uniquement les ressources utiles.\n\n"
-        + (e.description or "")
-    )[:4000]
+    e.description = ("Les vidéos sont rangées par **catégories** pour éviter un mur de liens. Choisis le sujet, puis ouvre uniquement les ressources utiles.\n\n" + (e.description or ""))[:4000]
     e.set_footer(text="Aide Bot V44 • Catégorie → sélection courte → application pratique")
     return e
 
