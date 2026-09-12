@@ -30,6 +30,7 @@ EXTENSIONS = (
     "aidebot.cogs.recruitment_v46",
     "aidebot.cogs.ticket_experience",
     "aidebot.cogs.premium_service_v48",
+    "aidebot.cogs.premium_service_v48_runtime",
     "aidebot.cogs.ticket_polish_v44",
     "aidebot.cogs.ticket_recovery",
     "aidebot.cogs.community",
