@@ -25,15 +25,16 @@ def _channels() -> list[str]:
     return [name for _category, names in CATEGORY_SPECS for name in names]
 
 
-def test_v57_every_permanent_channel_has_one_unique_purpose():
+def test_v57_original_channel_purposes_remain_unique_inside_v60_structure():
     channels = _channels()
-    assert PERMANENT_CHANNEL_COUNT == 12
-    assert set(channels) == set(CHANNEL_PURPOSES)
+    assert PERMANENT_CHANNEL_COUNT == 14
+    assert set(CHANNEL_PURPOSES).issubset(set(channels))
     assert len(set(CHANNEL_PURPOSES.values())) == len(CHANNEL_PURPOSES)
     assert all(text.strip() for text in CHANNEL_PURPOSES.values())
+    assert {"🤝・entraide", "📌・solutions"}.issubset(channels)
 
 
-def test_v57_adds_only_one_new_opt_in_role():
+def test_v57_notification_role_remains_unique_after_v60_role_expansion():
     roles = [name for name, _color, _perms in ROLE_SPECS]
     assert NOTIFICATION_ROLE in roles
     assert len(roles) == len(set(roles))

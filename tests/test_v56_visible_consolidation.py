@@ -16,11 +16,13 @@ class DummyBot:
         return None
 
 
-def test_v56_visible_structure_is_really_smaller():
+def test_v56_visible_structure_stays_compact_after_v60_community_expansion():
     channels = [name for _category, names in CATEGORY_SPECS for name in names]
-    assert PERMANENT_CHANNEL_COUNT == 12
+    assert PERMANENT_CHANNEL_COUNT == 14
     assert "🎓・centre-aide" in channels
     assert "🎓・formations" in channels
+    assert "🤝・entraide" in channels
+    assert "📌・solutions" in channels
     assert "💎・espace-premium" in channels
     for name in OBSOLETE_PANEL_CHANNELS:
         assert name not in channels

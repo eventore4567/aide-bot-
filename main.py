@@ -14,9 +14,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("aidebot")
 
 # Les moteurs historiques conservent tickets, paiements, formations, Premium,
-# Assistant IA et Guardian. V56 consolide l'aide ; V57 donne à chaque salon
-# une mission distincte ; V58 ajoute les outils visibles à forte valeur côté staff ;
-# V59 ajoute l'identité visuelle et la gestion avancée des rôles sans dashboard.
+# Assistant IA et Guardian. Les suites visibles V56+ consolident l'expérience
+# produit sans ajouter de dashboard externe ni multiplier les slash commands.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -53,6 +52,7 @@ EXTENSIONS = (
     "aidebot.cogs.channel_experience_v57",
     "aidebot.cogs.power_suite_v58",
     "aidebot.cogs.branding_role_studio_v59",
+    "aidebot.cogs.product_suite_v60",
 )
 
 PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
@@ -117,7 +117,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot • Branding, Roles & Guardian"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot • Setup, Aide & Guardian"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
