@@ -163,6 +163,41 @@ def _setup_success_embed(guild: discord.Guild, *, removed_legacy: int = 0) -> di
     return e
 
 
+async def _post_setup_v44(self: SetupServerCog, interaction: discord.Interaction) -> None:
+    """Run V44 post-setup checks without replacing discord.py's immutable Command.callback."""
+    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+        return
+    guild = interaction.guild
+    me = guild.me
+    if me is None:
+        return
+    allowed_user = guild.owner_id == interaction.user.id or interaction.user.guild_permissions.administrator
+    required_ok = all((
+        me.guild_permissions.manage_roles,
+        me.guild_permissions.manage_channels,
+        me.guild_permissions.view_channel,
+        me.guild_permissions.send_messages,
+        me.guild_permissions.embed_links,
+        me.guild_permissions.read_message_history,
+    ))
+    collisions = canonical_collisions(
+        role_names=(role.name for role in guild.roles),
+        category_names=(category.name for category in guild.categories),
+        channel_names=(channel.name for channel in guild.text_channels),
+    )
+    if not allowed_user or not required_ok or collisions:
+        return
+    removed_legacy = await _remove_obsolete_center_panels(self.bot, guild)
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                embed=_setup_success_embed(guild, removed_legacy=removed_legacy),
+                ephemeral=True,
+            )
+    except (discord.HTTPException, discord.NotFound):
+        pass
+
+
 class SetupPolishV43Cog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -171,48 +206,7 @@ class SetupPolishV43Cog(commands.Cog):
         SetupServerCog._training_embed = _training_embed_v44
         SetupServerCog._staff_embed = _staff_embed_v44
         SetupServerCog._rules_embed = _rules_embed_v44
-
-        command = SetupServerCog.setup_server
-        if getattr(command, "_aidebot_v44_wrapped", False):
-            return
-        original = command.callback
-
-        async def callback(cog: SetupServerCog, interaction: discord.Interaction) -> None:
-            await original(cog, interaction)
-            if not interaction.guild or not isinstance(interaction.user, discord.Member):
-                return
-            guild = interaction.guild
-            me = guild.me
-            if me is None:
-                return
-            allowed_user = guild.owner_id == interaction.user.id or interaction.user.guild_permissions.administrator
-            required_ok = all((
-                me.guild_permissions.manage_roles,
-                me.guild_permissions.manage_channels,
-                me.guild_permissions.view_channel,
-                me.guild_permissions.send_messages,
-                me.guild_permissions.embed_links,
-                me.guild_permissions.read_message_history,
-            ))
-            collisions = canonical_collisions(
-                role_names=(role.name for role in guild.roles),
-                category_names=(category.name for category in guild.categories),
-                channel_names=(channel.name for channel in guild.text_channels),
-            )
-            if not allowed_user or not required_ok or collisions:
-                return
-            removed_legacy = await _remove_obsolete_center_panels(self.bot, guild)
-            try:
-                if interaction.response.is_done():
-                    await interaction.followup.send(
-                        embed=_setup_success_embed(guild, removed_legacy=removed_legacy),
-                        ephemeral=True,
-                    )
-            except (discord.HTTPException, discord.NotFound):
-                pass
-
-        command.callback = callback
-        command._aidebot_v44_wrapped = True
+        SetupServerCog._post_setup_v44 = _post_setup_v44
 
 
 async def setup(bot: commands.Bot) -> None:
