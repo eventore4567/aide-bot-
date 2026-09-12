@@ -14,10 +14,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("aidebot")
 
 # Les anciens cogs restent chargés pour leurs vues persistantes, workers,
-# transactions, logs et logique interne. Les commandes slash héritées sont
-# retirées juste avant la synchronisation : l'UX membre reste panel-first.
+# transactions, logs et logique interne. L'expérience V43 se place par-dessus
+# cette base stable et garde seulement /setup et /buy côté commandes publiques.
 EXTENSIONS = (
     "aidebot.cogs.training",
+    "aidebot.cogs.experience_v43",
     "aidebot.cogs.member_experience",
     "aidebot.cogs.command_cleanup",
     "aidebot.cogs.center",
@@ -36,6 +37,7 @@ EXTENSIONS = (
     "aidebot.cogs.health",
     "aidebot.cogs.admin",
     "aidebot.cogs.setup_server",
+    "aidebot.cogs.setup_polish_v43",
     "aidebot.cogs.ops_dashboard",
 )
 
@@ -101,7 +103,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Panneaux • /setup • /buy"))
+            await bot.change_presence(activity=discord.Game(name="Centre Aide Bot • /setup • /buy"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
