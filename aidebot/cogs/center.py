@@ -4,15 +4,18 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from aidebot.experience_content import (
-    BANNER_URL,
-    FREE_DESCRIPTION,
-    GUIDES,
-    PREMIUM_DESCRIPTION,
+from aidebot.cogs.experience_v43 import (
+    TicketPortalView,
+    VideoLibraryView,
+    member_space_embed,
+    video_home_embed,
 )
-from aidebot.video_catalog import VIDEO_LIBRARY
 from aidebot.cogs.training import TrainingRequestModal
-from aidebot.premium_access import has_premium, missing_premium_message
+from aidebot.cogs.training_experience_v42 import V42TrainingPanel, training_catalog_embed
+from aidebot.experience_content import BANNER_URL, FREE_DESCRIPTION, GUIDES, PREMIUM_DESCRIPTION
+from aidebot.premium_access import has_premium
+from aidebot.ux_text import missing_premium_embed
+from aidebot.video_catalog import VIDEO_LIBRARY
 
 
 COLOR = 0x5865F2
@@ -22,55 +25,54 @@ PREMIUM = 0x9B59B6
 
 def center_embed(vip_price: int) -> discord.Embed:
     e = discord.Embed(
-        title="Aide Bot — Centre d’aide & formations",
+        title="Aide Bot — Ton centre de contrôle",
         description=(
-            "**Bienvenue sur Aide Bot.** Ici, tu n’as pas besoin de connaître 30 commandes pour commencer. "
-            "Choisis ce que tu veux faire avec les boutons ci-dessous et le bot te guide étape par étape.\n\n"
-            "Aide Bot est pensé comme un vrai service : explications complètes, exemples, vidéos, guides, "
-            "tickets suivis et accompagnement humain quand tu en as besoin."
+            "**Un seul endroit pour comprendre quoi faire ensuite.** Tu peux apprendre gratuitement, choisir un vrai parcours, "
+            "ouvrir un support adapté à ton problème, consulter les vidéos par catégorie ou accéder à ton espace Premium.\n\n"
+            "Aide Bot ne te renvoie plus d’une commande à une autre : chaque bouton ouvre directement l’expérience correspondante."
         ),
         color=COLOR,
     )
     e.add_field(
-        name="GRATUIT — apprendre et résoudre un problème",
-        value=(
-            "Guides complets sur Discord, serveurs, permissions, bots et tickets. Vidéos complémentaires, exemples "
-            "concrets, erreurs fréquentes, quiz et entraide communautaire. **Tu peux déjà apprendre sérieusement sans payer.**"
-        ),
-        inline=False,
+        name="Apprendre",
+        value="Guides détaillés, exemples, erreurs fréquentes et vidéos complémentaires.",
+        inline=True,
     )
     e.add_field(
-        name="PREMIUM — espace réservé aux abonnés",
-        value=(
-            f"L’abonnement est actuellement configuré à **{vip_price} Robux**. Il s’achète uniquement depuis `🛒・shop` ou `/buy`. "
-            "Après validation du paiement, le rôle **💎・VIP** est attribué et débloque les parcours Premium, audits et accompagnements personnalisés."
-        ),
-        inline=False,
+        name="Se former",
+        value="Fiche complète du parcours avant inscription, programme, durée, niveau et formulaire spécifique.",
+        inline=True,
     )
     e.add_field(
-        name="SUPPORT — un vrai ticket, pas un salon vide",
+        name="Être aidé",
+        value="Support trié par type : Discord, serveur/permissions, bot/code, sécurité ou autre.",
+        inline=True,
+    )
+    e.add_field(
+        name="Premium",
         value=(
-            "Explique ton problème dans un formulaire. Le ticket affiche ton objectif, ton niveau et ton contexte. "
-            "Un membre autorisé peut le prendre en charge ; une seule personne peut être assignée à la fois. "
-            "Tu gardes ensuite un suivi clair jusqu’à la résolution et l’avis final."
+            f"Abonnement configuré à **{vip_price} Robux**. Achat uniquement via `🛒・shop` ou `/buy`; les autres boutons Premium servent à utiliser un accès déjà actif."
         ),
         inline=False,
     )
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot • Choisis une action ci-dessous • Aucun secret ne doit être envoyé en ticket")
+    e.set_footer(text="Aide Bot V43 • Choisis ton objectif, pas une commande")
     return e
 
 
 def guide_index_embed() -> discord.Embed:
-    lines = []
-    for key, data in GUIDES.items():
-        lines.append(f"**{data['title']}** (`{key}`)\n{data['subtitle']}")
+    lines = [f"**{data['title']}**\n{data['subtitle']}" for data in GUIDES.values()]
     e = discord.Embed(
-        title="Guides gratuits — choisis un sujet",
-        description=FREE_DESCRIPTION + "\n\n" + "\n\n".join(lines),
+        title="Guides gratuits — apprendre vraiment",
+        description=(
+            FREE_DESCRIPTION
+            + "\n\nChoisis un sujet dans le menu. Chaque guide contient une explication, un exemple concret, des erreurs à éviter et une ressource vidéo quand elle existe.\n\n"
+            + "\n\n".join(lines)
+        )[:4000],
         color=SUCCESS,
     )
     e.set_image(url=BANNER_URL)
+    e.set_footer(text="Aide Bot • Guide → exemple → erreurs → vidéo → pratique")
     return e
 
 
@@ -83,72 +85,43 @@ def guide_embed(key: str) -> discord.Embed:
     e.add_field(name="Erreurs fréquentes à éviter", value=data["mistakes"], inline=False)
     video = VIDEO_LIBRARY.get(data.get("video_key", ""))
     if video:
-        e.add_field(
-            name="Vidéo complémentaire",
-            value=f"**{video['title']}**\n{video['note']}",
-            inline=False,
-        )
+        e.add_field(name="Vidéo complémentaire", value=f"**{video['title']}**\n{video['note']}", inline=False)
     e.set_image(url=BANNER_URL)
-    e.set_footer(text="Aide Bot • Lis, pratique, puis ouvre un ticket seulement si tu restes bloqué")
+    e.set_footer(text="Aide Bot • Comprends d’abord, applique ensuite")
     return e
 
 
 def premium_embed(vip_price: int) -> discord.Embed:
     e = discord.Embed(
         title="Aide Bot Premium — espace abonné",
-        description=PREMIUM_DESCRIPTION,
+        description=(
+            PREMIUM_DESCRIPTION
+            + "\n\nPremium sert à obtenir **du temps humain, un diagnostic et un suivi sur ton projet réel**. Les bases restent accessibles gratuitement."
+        ),
         color=PREMIUM,
     )
     e.add_field(
         name="Ce que ton abonnement débloque",
         value=(
-            "• Diagnostic de ton besoin et de ton niveau\n"
-            "• Plan de travail adapté à ton objectif\n"
-            "• Ticket privé avec un Formateur assigné\n"
-            "• Rendez-vous / suivi selon la formule\n"
-            "• Audits serveur, bot ou sécurité\n"
-            "• Parcours Premium et extensions avancées\n"
-            "• Exercices, corrections et vérification finale\n"
-            "• Ressources de fin pour pouvoir refaire seul"
+            "Diagnostic personnalisé • plan de travail • ticket privé • Formateur assigné • parcours avancés • audits serveur/bot/sécurité • "
+            "exercices • corrections • vérification finale • ressources de fin."
         ),
         inline=False,
     )
     e.add_field(
-        name="Comment obtenir l’accès",
+        name="Activation",
         value=(
-            f"L’abonnement principal est configuré à **{vip_price} Robux**. L’achat se fait **uniquement** dans `🛒・shop` ou avec `/buy`. "
-            "Un ticket d’activation est créé ; après validation du paiement par la Direction, le rôle **💎・VIP** est ajouté automatiquement."
-        ),
-        inline=False,
-    )
-    e.add_field(
-        name="Important",
-        value=(
-            "Le bouton Premium n’est pas un bouton d’achat. Il sert à utiliser un abonnement déjà actif. "
-            "Sans rôle VIP, le bot affiche **Abonnement Premium manquant** et te renvoie vers la boutique."
+            f"Prix configuré : **{vip_price} Robux**. Achat uniquement dans `🛒・shop` ou avec `/buy`. Après validation par la Direction, le rôle **💎・VIP** est attribué automatiquement."
         ),
         inline=False,
     )
     e.set_image(url=BANNER_URL)
+    e.set_footer(text="Aide Bot Premium • Acheter dans la boutique, utiliser partout ailleurs")
     return e
 
 
 def videos_embed() -> discord.Embed:
-    lines = []
-    for video in VIDEO_LIBRARY.values():
-        lines.append(f"**{video['title']}**\n{video['note']}")
-    description = (
-        "La bibliothèque contient maintenant plusieurs supports : serveur, permissions, bots, slash commands, webhooks/embeds, "
-        "Railway, tickets, sécurité/anti-raid et Git/GitHub. Les vidéos servent à voir les manipulations ; les guides Aide Bot expliquent le pourquoi.\n\n"
-        + "\n\n".join(lines)
-    )
-    e = discord.Embed(
-        title="Bibliothèque vidéo — supports visuels",
-        description=description[:4000],
-        color=0xE67E22,
-    )
-    e.set_image(url=BANNER_URL)
-    return e
+    return video_home_embed()
 
 
 class HelpRequestModal(discord.ui.Modal, title="Ouvrir une demande d’aide"):
@@ -161,16 +134,12 @@ class HelpRequestModal(discord.ui.Modal, title="Ouvrir une demande d’aide"):
     )
     tried = discord.ui.TextInput(
         label="Qu’as-tu déjà essayé ?",
-        placeholder="Commandes, réglages, message d’erreur, étapes déjà testées...",
+        placeholder="Réglages, messages d’erreur, étapes testées...",
         style=discord.TextStyle.paragraph,
         required=False,
         max_length=700,
     )
-    availability = discord.ui.TextInput(
-        label="Tes disponibilités",
-        placeholder="Ex: maintenant / ce soir 18h-21h",
-        max_length=120,
-    )
+    availability = discord.ui.TextInput(label="Tes disponibilités", placeholder="Ex: ce soir 18h-21h", max_length=120)
 
     def __init__(self, cog: "CenterCog") -> None:
         super().__init__()
@@ -193,23 +162,14 @@ class HelpRequestModal(discord.ui.Modal, title="Ouvrir une demande d’aide"):
             budget="Gratuit",
             status="open",
             payment_status="not_required",
-            invite_used=False,
+            requires_invite=False,
         )
 
 
 class GuideSelect(discord.ui.Select):
     def __init__(self) -> None:
-        options = [
-            discord.SelectOption(label=data["title"][:100], value=key, description=data["subtitle"][:100])
-            for key, data in GUIDES.items()
-        ]
-        super().__init__(
-            placeholder="Choisis le guide que tu veux lire",
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id="aidebot:center:guide_select",
-        )
+        options = [discord.SelectOption(label=data["title"][:100], value=key, description=data["subtitle"][:100]) for key, data in GUIDES.items()]
+        super().__init__(placeholder="Choisis le guide que tu veux lire", min_values=1, max_values=1, options=options, custom_id="aidebot:center:guide_select")
 
     async def callback(self, interaction: discord.Interaction) -> None:
         key = self.values[0]
@@ -236,17 +196,18 @@ class GuideDetailView(discord.ui.View):
 
     @discord.ui.button(label="J’ai encore besoin d’aide", style=discord.ButtonStyle.primary)
     async def help(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
-        cog = interaction.client.get_cog("CenterCog")
-        if cog is None:
-            return await interaction.response.send_message("Centre d’aide indisponible.", ephemeral=True)
-        await interaction.response.send_modal(HelpRequestModal(cog))
+        await interaction.response.send_message(
+            "Choisis d’abord la catégorie qui correspond vraiment à ton problème.",
+            view=TicketPortalView(interaction.client),
+            ephemeral=True,
+        )
 
 
-class VideoView(discord.ui.View):
+class VideoView(VideoLibraryView):
+    """Alias de compatibilité : les anciens appels ouvrent maintenant la bibliothèque V43."""
+
     def __init__(self) -> None:
-        super().__init__(timeout=900)
-        for video in VIDEO_LIBRARY.values():
-            self.add_item(discord.ui.Button(label=video["title"][:80], style=discord.ButtonStyle.link, url=video["url"]))
+        super().__init__()
 
 
 class PremiumView(discord.ui.View):
@@ -254,10 +215,10 @@ class PremiumView(discord.ui.View):
         super().__init__(timeout=900)
         self.cog = cog
 
-    @discord.ui.button(label="Ouvrir mon accompagnement Premium", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Ouvrir mon accompagnement", style=discord.ButtonStyle.success)
     async def request(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         if not isinstance(interaction.user, discord.Member) or not has_premium(interaction.user):
-            return await interaction.response.send_message(missing_premium_message(), ephemeral=True)
+            return await interaction.response.send_message(embed=missing_premium_embed(), ephemeral=True)
         training = self.cog.bot.get_cog("TrainingCog")
         if training is None:
             return await interaction.response.send_message("Module de formations indisponible.", ephemeral=True)
@@ -269,27 +230,41 @@ class CenterView(discord.ui.View):
         super().__init__(timeout=None)
         self.cog = cog
 
-    @discord.ui.button(label="Commencer gratuitement", style=discord.ButtonStyle.success, custom_id="aidebot:center:free")
+    @discord.ui.button(label="Guides gratuits", style=discord.ButtonStyle.success, custom_id="aidebot:center:free")
     async def free(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await interaction.response.send_message(embed=guide_index_embed(), view=GuideIndexView(), ephemeral=True)
 
-    @discord.ui.button(label="Ouvrir un ticket d’aide", style=discord.ButtonStyle.primary, custom_id="aidebot:center:help")
-    async def help(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
-        await interaction.response.send_modal(HelpRequestModal(self.cog))
+    @discord.ui.button(label="Formations", style=discord.ButtonStyle.primary, custom_id="aidebot:v43:center:training")
+    async def training(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        training = interaction.client.get_cog("TrainingCog")
+        if training is None:
+            return await interaction.response.send_message("Module de formations indisponible.", ephemeral=True)
+        await interaction.response.send_message(embed=training_catalog_embed(), view=V42TrainingPanel(training), ephemeral=True)
 
-    @discord.ui.button(label="Premium", style=discord.ButtonStyle.secondary, custom_id="aidebot:center:premium")
-    async def premium(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
-        if not isinstance(interaction.user, discord.Member) or not has_premium(interaction.user):
-            return await interaction.response.send_message(missing_premium_message(), ephemeral=True)
+    @discord.ui.button(label="Support", style=discord.ButtonStyle.primary, custom_id="aidebot:center:help")
+    async def help(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await interaction.response.send_message(
-            embed=premium_embed(self.cog.bot.settings.vip_price_robux),
-            view=PremiumView(self.cog),
+            "Choisis le type de problème pour ouvrir le bon formulaire.",
+            view=TicketPortalView(self.cog.bot),
             ephemeral=True,
         )
 
     @discord.ui.button(label="Vidéos", style=discord.ButtonStyle.secondary, custom_id="aidebot:center:videos")
     async def videos(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
-        await interaction.response.send_message(embed=videos_embed(), view=VideoView(), ephemeral=True)
+        await interaction.response.send_message(embed=video_home_embed(), view=VideoLibraryView(), ephemeral=True)
+
+    @discord.ui.button(label="Mon espace", style=discord.ButtonStyle.secondary, custom_id="aidebot:v43:center:space")
+    async def space(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if not isinstance(interaction.user, discord.Member):
+            return
+        await interaction.response.send_message(embed=await member_space_embed(self.cog.bot, interaction.user), ephemeral=True)
+
+    @discord.ui.button(label="Premium", style=discord.ButtonStyle.secondary, custom_id="aidebot:center:premium", row=1)
+    async def premium(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if not isinstance(interaction.user, discord.Member) or not has_premium(interaction.user):
+            shop = discord.utils.get(interaction.guild.text_channels, name="🛒・shop") if interaction.guild else None
+            return await interaction.response.send_message(embed=missing_premium_embed(shop), ephemeral=True)
+        await interaction.response.send_message(embed=premium_embed(self.cog.bot.settings.vip_price_robux), view=PremiumView(self.cog), ephemeral=True)
 
 
 class CenterCog(commands.Cog, name="CenterCog"):
@@ -304,11 +279,7 @@ class CenterCog(commands.Cog, name="CenterCog"):
 
     @app_commands.command(name="centre", description="Ouvrir le centre interactif Aide Bot")
     async def centre(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_message(
-            embed=center_embed(self.bot.settings.vip_price_robux),
-            view=CenterView(self),
-            ephemeral=True,
-        )
+        await interaction.response.send_message(embed=center_embed(self.bot.settings.vip_price_robux), view=CenterView(self), ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
