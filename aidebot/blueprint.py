@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import discord
 
-# V57 garde la surface visible compacte : chaque salon permanent a un seul rôle
-# produit clairement différent. Les fonctions transverses passent par des panneaux
-# et menus au lieu de multiplier les salons qui se ressemblent.
+# Surface visible volontairement compacte : chaque salon permanent a une mission
+# claire. Les fonctions transverses vivent dans des panneaux/menus plutôt que de
+# multiplier les salons qui font la même chose.
 ROLE_SPECS = [
     ("👑・Direction", 0xF1C40F, dict(manage_channels=True, manage_roles=True, manage_messages=True)),
     ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True)),
     ("🎓・Formateur", 0x5865F2, dict()),
     ("🤝・Helper", 0x57F287, dict()),
+    ("🧭・Mentor", 0x1ABC9C, dict()),
     ("🌟・Ambassadeur", 0xFEE75C, dict()),
     ("✅・Apprenant certifié", 0x3498DB, dict()),
     ("💎・VIP", 0xEB459E, dict()),
@@ -22,6 +23,7 @@ ROLE_SPECS = [
 CATEGORY_SPECS = [
     ("━━ INFORMATIONS ━━", ["👋・bienvenue", "📜・règlement", "📢・annonces"]),
     ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🎓・formations"]),
+    ("━━ COMMUNAUTÉ ━━", ["🤝・entraide", "📌・solutions"]),
     ("━━ BOUTIQUE ━━", ["🛒・shop"]),
     ("━━ PREMIUM ━━", ["💎・espace-premium"]),
     ("━━ SERVICES ━━", ["⭐・avis", "🧑‍🏫・recrutement"]),
@@ -29,7 +31,7 @@ CATEGORY_SPECS = [
 ]
 
 PERMANENT_CHANNEL_COUNT = sum(len(channels) for _, channels in CATEGORY_SPECS)
-assert PERMANENT_CHANNEL_COUNT <= 12
+assert PERMANENT_CHANNEL_COUNT <= 14
 
 
 def role_permissions(spec: dict[str, bool]) -> discord.Permissions:
