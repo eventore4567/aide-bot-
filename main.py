@@ -13,12 +13,14 @@ from aidebot.integrity_db import IntegrityDatabase
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("aidebot")
 
-# Les anciens cogs restent chargés pour leurs vues persistantes, workers,
-# transactions, logs et logique interne. L'expérience V43 se place par-dessus
-# cette base stable et garde seulement /setup et /buy côté commandes publiques.
+# Les cogs historiques conservent les workers, transactions, logs et vues
+# persistantes. V44 place une expérience produit au-dessus de cette base :
+# dashboard unique, support avec diagnostic, formations détaillées et setup
+# avec contrôle de qualité. La surface publique reste volontairement minimale.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
+    "aidebot.cogs.experience_v44",
     "aidebot.cogs.member_experience",
     "aidebot.cogs.command_cleanup",
     "aidebot.cogs.center",
@@ -103,7 +105,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Centre Aide Bot • /setup • /buy"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot V44 • /setup • /buy"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
