@@ -15,7 +15,7 @@ from aidebot.cogs.center import (
     videos_embed,
 )
 from aidebot.cogs.training import PremiumPurchaseModal, TrainingPanel, TrainingRequestModal, TrainingSelect
-from aidebot.cogs.training_experience_v42 import V42TrainingPanel, V42TrainingSelect
+from aidebot.cogs.training_experience_v42 import V42TrainingSelect
 from aidebot.experience_content import BANNER_URL
 from aidebot.premium_access import has_premium
 from aidebot.ux_text import missing_premium_embed, premium_member_embed
@@ -46,7 +46,7 @@ def welcome_embed() -> discord.Embed:
     e = discord.Embed(
         title=WELCOME_TITLE,
         description=(
-            "Bienvenue sur **Aide Bot**. Ici, chaque salon a un rôle précis : tu n’as pas à deviner quelle commande utiliser.\n\n"
+            "Bienvenue sur **Aide Bot**. Ce salon **sert uniquement à t’accueillir** et à t’indiquer le bon espace : tu n’as pas à deviner quelle commande utiliser.\n\n"
             "**Apprendre gratuitement** → `🎓・centre-aide`\n"
             "**Choisir une formation** → `🎓・formations`\n"
             "**Regarder des tutoriels** → `🎥・videos-guides`\n"
@@ -58,9 +58,7 @@ def welcome_embed() -> discord.Embed:
     )
     e.add_field(
         name="Avant de commencer",
-        value=(
-            "Ne partage jamais de token, mot de passe, cookie ou code 2FA. Dans un ticket, explique le résultat attendu, ce qui bloque et ce que tu as déjà testé."
-        ),
+        value="Ne partage jamais de token, mot de passe, cookie ou code 2FA. Dans un ticket, explique le résultat attendu, ce qui bloque et ce que tu as déjà testé.",
         inline=False,
     )
     e.set_image(url=BANNER_URL)
