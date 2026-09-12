@@ -45,6 +45,7 @@ EXTENSIONS = (
     "aidebot.cogs.health",
     "aidebot.cogs.admin",
     "aidebot.cogs.setup_server",
+    "aidebot.cogs.assistant_guardian_setup_v52",
     "aidebot.cogs.setup_polish_v43",
     "aidebot.cogs.ops_dashboard",
 )
