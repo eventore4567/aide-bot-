@@ -16,11 +16,12 @@ class DummyBot:
         return None
 
 
-def test_v56_visible_structure_stays_compact_after_v60_community_expansion():
+def test_v56_visible_structure_stays_compact_after_v62_general_expansion():
     channels = [name for _category, names in CATEGORY_SPECS for name in names]
-    assert PERMANENT_CHANNEL_COUNT == 14
+    assert PERMANENT_CHANNEL_COUNT == 15
     assert "🎓・centre-aide" in channels
     assert "🎓・formations" in channels
+    assert "💬・général" in channels
     assert "🤝・entraide" in channels
     assert "📌・solutions" in channels
     assert "💎・espace-premium" in channels
