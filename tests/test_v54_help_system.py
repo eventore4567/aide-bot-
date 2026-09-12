@@ -5,19 +5,12 @@ import discord
 from aidebot.blueprint import CATEGORY_SPECS, PERMANENT_CHANNEL_COUNT
 from aidebot.cogs.help_system_v54 import (
     CENTER_CHANNEL,
-    GUIDES_CHANNEL,
     HELP_CARDS,
     HELP_CATEGORIES,
-    QUICK_CHANNEL,
-    GuidesView,
-    HelpHomeView,
-    QuickHelpView,
     card_embed,
     classify_problem,
-    guides_home_embed,
-    help_home_embed,
-    quick_help_embed,
 )
+from aidebot.cogs.experience_v56 import HelpHubViewV56, help_hub_embed
 from main import EXTENSIONS, PUBLIC_SLASH_COMMANDS
 
 
@@ -36,16 +29,14 @@ def _labels(view: discord.ui.View) -> set[str]:
     }
 
 
-def test_v54_adds_only_two_specialized_help_channels():
+def test_v54_knowledge_engine_is_consolidated_into_two_help_channels_in_v56():
     categories = dict(CATEGORY_SPECS)
     help_channels = categories["━━ AIDE & FORMATIONS ━━"]
-    assert CENTER_CHANNEL in help_channels
-    assert QUICK_CHANNEL in help_channels
-    assert GUIDES_CHANNEL in help_channels
-    assert "🤖・assistant-aide" in help_channels
-    assert "🎓・formations" in help_channels
-    assert len(help_channels) == 5
-    assert PERMANENT_CHANNEL_COUNT == 17
+    assert help_channels == [CENTER_CHANNEL, "🎓・formations"]
+    assert PERMANENT_CHANNEL_COUNT <= 12
+    assert "🆘・aide-rapide" not in help_channels
+    assert "🤖・assistant-aide" not in help_channels
+    assert "📚・guides" not in help_channels
 
 
 def test_v54_help_catalog_is_real_and_broad():
@@ -69,28 +60,22 @@ def test_v54_free_text_router_finds_common_problems():
     assert classify_problem("bonjour juste une question sans contexte précis") is None
 
 
-def test_v54_surfaces_have_distinct_jobs_and_few_controls():
+def test_v56_hub_replaces_three_duplicate_help_surfaces():
     bot = DummyBot()
-    home = HelpHomeView(bot)
-    quick = QuickHelpView(bot)
-    guides = GuidesView(bot)
-
-    assert len([x for x in home.children if isinstance(x, discord.ui.Select)]) == 1
+    home = HelpHubViewV56(bot)
+    selects = [x for x in home.children if isinstance(x, discord.ui.Select)]
+    assert len(selects) == 1
+    assert len(selects[0].options) == 5
     assert _labels(home) == {"Décrire mon problème"}
-
-    assert len([x for x in quick.children if isinstance(x, discord.ui.Select)]) == 1
-    assert _labels(quick) == {"Décrire mon problème"}
-
-    assert len([x for x in guides.children if isinstance(x, discord.ui.Select)]) == 1
-    assert _labels(guides) == set()
-
-    assert "orientation" in (help_home_embed().description or "").casefold()
-    assert "symptôme" in (quick_help_embed().description or "").casefold()
-    assert "bibliothèque" in (guides_home_embed().description or "").casefold()
+    text = (help_hub_embed().description or "").casefold()
+    assert "un seul endroit" in text
+    assert "ia" in text
+    assert "support" in text
 
 
-def test_v54_removes_dashboard_runtime_and_keeps_public_commands_small():
-    assert "aidebot.cogs.help_system_v54" in EXTENSIONS
+def test_v56_replaces_v54_runtime_and_keeps_public_commands_small():
+    assert "aidebot.cogs.help_system_v54" not in EXTENSIONS
+    assert "aidebot.cogs.experience_v56" in EXTENSIONS
     assert "aidebot.cogs.owner_console_v53" not in EXTENSIONS
     assert "aidebot.cogs.ops_dashboard" not in EXTENSIONS
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
