@@ -53,6 +53,7 @@ EXTENSIONS = (
     "aidebot.cogs.power_suite_v58",
     "aidebot.cogs.branding_role_studio_v59",
     "aidebot.cogs.product_suite_v60",
+    "aidebot.cogs.enterprise_academy_v61",
 )
 
 PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
@@ -117,7 +118,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot • Setup, Aide & Guardian"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot • Academy, Aide & Guardian"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
