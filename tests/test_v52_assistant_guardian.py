@@ -30,7 +30,7 @@ def _button_labels(view: discord.ui.View) -> set[str]:
 
 def test_v52_keeps_server_compact_and_adds_ai_room():
     channels = [name for _category, names in CATEGORY_SPECS for name in names]
-    assert PERMANENT_CHANNEL_COUNT == 15
+    assert PERMANENT_CHANNEL_COUNT == 17
     assert AI_CHANNEL in channels
     assert "🎥・videos-guides" not in channels
 

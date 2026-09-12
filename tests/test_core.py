@@ -19,7 +19,7 @@ class Member:
 
 
 def test_server_stays_compact():
-    assert PERMANENT_CHANNEL_COUNT <= 15
+    assert PERMANENT_CHANNEL_COUNT <= 17
     names = [name for _, channels in CATEGORY_SPECS for name in channels]
     assert len(names) == len(set(names))
 

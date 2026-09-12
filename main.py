@@ -13,9 +13,9 @@ from aidebot.integrity_db import IntegrityDatabase
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("aidebot")
 
-# Les moteurs historiques conservent les tickets, paiements, formations et
-# services Premium. V51 simplifie l'expérience publique, V52 ajoute l'assistant
-# IA + Guardian et V53 ajoute une console propriétaire de maintenance/backup.
+# Les moteurs historiques conservent tickets, paiements, formations, Premium,
+# Assistant IA et Guardian. V54 retire les dashboards et transforme surtout le
+# système d'aide : orientation, diagnostic rapide, guides et escalade propre.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -46,9 +46,8 @@ EXTENSIONS = (
     "aidebot.cogs.admin",
     "aidebot.cogs.setup_server",
     "aidebot.cogs.assistant_guardian_setup_v52",
-    "aidebot.cogs.owner_console_v53",
+    "aidebot.cogs.help_system_v54",
     "aidebot.cogs.setup_polish_v43",
-    "aidebot.cogs.ops_dashboard",
 )
 
 PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
@@ -113,7 +112,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot • IA, Guardian & maintenance"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot • aide intelligente & Guardian"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 
