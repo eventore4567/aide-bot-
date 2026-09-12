@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import discord
 
-# Structure V40 : peu de salons, chacun a un rôle clair. Les membres utilisent
+# Structure V45 : peu de salons, chacun a un rôle clair. Les membres utilisent
 # des panneaux/boutons ; les commandes slash restent volontairement minimales.
 ROLE_SPECS = [
     ("👑・Direction", 0xF1C40F, dict(manage_channels=True, manage_roles=True, manage_messages=True)),
@@ -17,12 +17,13 @@ ROLE_SPECS = [
     ("👤・Membre", 0x95A5A6, dict()),
 ]
 
-# Bienvenue, formations, vidéos, boutique et tickets ont chacun leur propre
-# panneau. Aucun contenu de formation ne doit être recopié dans Bienvenue.
+# Bienvenue, formations, vidéos, boutique, Premium et tickets ont chacun leur
+# propre panneau. La catégorie Premium est masquée aux non-VIP par /setup.
 CATEGORY_SPECS = [
     ("━━ INFORMATIONS ━━", ["👋・bienvenue", "📜・règlement", "📢・annonces"]),
     ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🎓・formations", "🎥・videos-guides"]),
     ("━━ BOUTIQUE ━━", ["🛒・shop"]),
+    ("━━ PREMIUM ━━", ["💎・espace-premium", "🎬・videos-premium"]),
     ("━━ SERVICES ━━", ["🎫・ouvrir-ticket", "⭐・avis", "🧑‍🏫・recrutement"]),
     ("━━ STAFF ━━", ["📋・staff", "🧾・logs", "🧠・suivi-formations"]),
 ]
