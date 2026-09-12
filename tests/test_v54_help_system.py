@@ -29,14 +29,15 @@ def _labels(view: discord.ui.View) -> set[str]:
     }
 
 
-def test_v54_knowledge_engine_is_consolidated_into_two_help_channels_in_v56():
+def test_v54_knowledge_engine_stays_consolidated_with_v60_community():
     categories = dict(CATEGORY_SPECS)
     help_channels = categories["━━ AIDE & FORMATIONS ━━"]
     assert help_channels == [CENTER_CHANNEL, "🎓・formations"]
-    assert PERMANENT_CHANNEL_COUNT <= 12
+    assert PERMANENT_CHANNEL_COUNT <= 14
     assert "🆘・aide-rapide" not in help_channels
     assert "🤖・assistant-aide" not in help_channels
     assert "📚・guides" not in help_channels
+    assert categories["━━ COMMUNAUTÉ ━━"] == ["🤝・entraide", "📌・solutions"]
 
 
 def test_v54_help_catalog_is_real_and_broad():
