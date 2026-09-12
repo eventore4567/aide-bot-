@@ -39,9 +39,8 @@ def _next_step(req) -> str:
     if req["status"] == "closed":
         return "Ce ticket est archivé. Il reste disponible en lecture seule selon les permissions du serveur."
     if not req["trainer_id"]:
-        return "Un Helper/Formateur autorisé doit cliquer sur **Prendre**. Une seule personne sera assignée."
+        return "Un seul Helper/Formateur autorisé doit cliquer sur **Prendre**. Une seule personne sera assignée au suivi."
     progress = int(req["progress"] or 0)
-    total = int(req["total_steps"] or 1)
     data = FORMATIONS.get(req["training_key"])
     if data and progress < len(data.get("steps", [])):
         return f"Responsable assigné : <@{req['trainer_id']}>. Prochaine étape : **{data['steps'][progress]}**."
