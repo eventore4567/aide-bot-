@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("aidebot")
 
 # Les moteurs historiques conservent tickets, paiements, formations, Premium,
-# Assistant IA et Guardian. Le système d'aide V54 reste compact et /setup V55
-# devient l'installateur/réparateur canonique, avec préflight et snapshot.
+# Assistant IA et Guardian. V56 consolide toute l'aide visible dans un seul
+# centre et garde /setup V55 comme installateur/réparateur canonique.
 EXTENSIONS = (
     "aidebot.cogs.training",
     "aidebot.cogs.experience_v43",
@@ -46,9 +46,9 @@ EXTENSIONS = (
     "aidebot.cogs.admin",
     "aidebot.cogs.setup_server",
     "aidebot.cogs.assistant_guardian_setup_v52",
-    "aidebot.cogs.help_system_v54",
     "aidebot.cogs.setup_polish_v43",
     "aidebot.cogs.setup_experience_v55",
+    "aidebot.cogs.experience_v56",
 )
 
 PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
@@ -113,7 +113,7 @@ async def main() -> None:
         assert bot.user is not None
         log.info("Connecté en tant que %s (%s)", bot.user, bot.user.id)
         try:
-            await bot.change_presence(activity=discord.Game(name="Aide Bot • aide intelligente & Guardian"))
+            await bot.change_presence(activity=discord.Game(name="Aide Bot • solutions, IA & support"))
         except discord.HTTPException:
             log.warning("Impossible de mettre à jour la présence Discord")
 

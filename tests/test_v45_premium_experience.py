@@ -15,11 +15,12 @@ from aidebot.cogs.premium_v45 import (
 from aidebot.video_catalog import PREMIUM_VIDEO_LIBRARY
 
 
-def test_v45_adds_private_premium_rooms_without_channel_bloat():
+def test_v45_premium_resources_survive_v56_channel_consolidation():
     categories = dict(CATEGORY_SPECS)
     assert PREMIUM_CATEGORY in categories
-    assert categories[PREMIUM_CATEGORY] == [PREMIUM_HUB_CHANNEL, PREMIUM_VIDEO_CHANNEL]
-    assert PERMANENT_CHANNEL_COUNT == 17
+    assert categories[PREMIUM_CATEGORY] == [PREMIUM_HUB_CHANNEL]
+    assert PREMIUM_VIDEO_CHANNEL not in categories[PREMIUM_CATEGORY]
+    assert PERMANENT_CHANNEL_COUNT <= 12
 
 
 def test_premium_video_library_is_large_and_search_based():

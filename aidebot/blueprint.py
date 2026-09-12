@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import discord
 
-# Structure compacte : chaque salon permanent a un rôle clair. Les membres
-# utilisent surtout des panneaux, menus et formulaires plutôt qu'une longue
-# liste de commandes slash.
+# V56 réduit volontairement la surface visible. Une fonction importante = un
+# endroit clair. Les diagnostics, guides, IA et escalade support vivent désormais
+# dans le même Centre d'aide au lieu d'occuper plusieurs salons presque identiques.
 ROLE_SPECS = [
     ("👑・Direction", 0xF1C40F, dict(manage_channels=True, manage_roles=True, manage_messages=True)),
     ("📘・Responsable Formation", 0xE67E22, dict(manage_messages=True)),
@@ -18,31 +18,17 @@ ROLE_SPECS = [
     ("👤・Membre", 0x95A5A6, dict()),
 ]
 
-# V54 ajoute seulement deux salons d'aide, chacun avec une fonction différente :
-# - aide-rapide = diagnostic guidé par symptôme ;
-# - guides = bibliothèque structurée de solutions.
-# L'assistant IA reste séparé pour les questions libres, afin de ne pas créer
-# plusieurs boutons qui font la même chose.
 CATEGORY_SPECS = [
     ("━━ INFORMATIONS ━━", ["👋・bienvenue", "📜・règlement", "📢・annonces"]),
-    (
-        "━━ AIDE & FORMATIONS ━━",
-        [
-            "🎓・centre-aide",
-            "🆘・aide-rapide",
-            "🤖・assistant-aide",
-            "📚・guides",
-            "🎓・formations",
-        ],
-    ),
+    ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🎓・formations"]),
     ("━━ BOUTIQUE ━━", ["🛒・shop"]),
-    ("━━ PREMIUM ━━", ["💎・espace-premium", "🎬・videos-premium"]),
-    ("━━ SERVICES ━━", ["🎫・ouvrir-ticket", "⭐・avis", "🧑‍🏫・recrutement"]),
+    ("━━ PREMIUM ━━", ["💎・espace-premium"]),
+    ("━━ SERVICES ━━", ["⭐・avis", "🧑‍🏫・recrutement"]),
     ("━━ STAFF ━━", ["📋・staff", "🧾・logs", "🧠・suivi-formations"]),
 ]
 
 PERMANENT_CHANNEL_COUNT = sum(len(channels) for _, channels in CATEGORY_SPECS)
-assert PERMANENT_CHANNEL_COUNT <= 17
+assert PERMANENT_CHANNEL_COUNT <= 12
 
 
 def role_permissions(spec: dict[str, bool]) -> discord.Permissions:

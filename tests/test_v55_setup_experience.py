@@ -20,10 +20,11 @@ class DummyCog:
         return None
 
 
-def test_v55_replaces_setup_after_historical_setup_layers():
+def test_v55_setup_remains_canonical_then_v56_patches_visible_panels():
     assert "aidebot.cogs.setup_experience_v55" in EXTENSIONS
+    assert "aidebot.cogs.experience_v56" in EXTENSIONS
     assert EXTENSIONS.index("aidebot.cogs.setup_experience_v55") > EXTENSIONS.index("aidebot.cogs.setup_server")
-    assert EXTENSIONS.index("aidebot.cogs.setup_experience_v55") > EXTENSIONS.index("aidebot.cogs.help_system_v54")
+    assert EXTENSIONS.index("aidebot.cogs.experience_v56") > EXTENSIONS.index("aidebot.cogs.setup_experience_v55")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
 
 
