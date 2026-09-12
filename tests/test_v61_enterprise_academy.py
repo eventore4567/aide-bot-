@@ -35,10 +35,12 @@ def _channels():
     return [name for _category, names in CATEGORY_SPECS for name in names]
 
 
-def test_v61_loads_last_without_new_public_slash_commands_or_channels():
-    assert EXTENSIONS[-1] == "aidebot.cogs.enterprise_academy_v61"
+def test_v61_is_preserved_before_v62_without_extra_public_slash_commands():
+    assert "aidebot.cogs.enterprise_academy_v61" in EXTENSIONS
+    assert EXTENSIONS[-1] == "aidebot.cogs.simple_help_v62"
+    assert EXTENSIONS.index("aidebot.cogs.simple_help_v62") > EXTENSIONS.index("aidebot.cogs.enterprise_academy_v61")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
-    assert PERMANENT_CHANNEL_COUNT == 14
+    assert PERMANENT_CHANNEL_COUNT == 15
     assert _channels().count("🎓・formations") == 1
 
 
