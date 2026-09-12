@@ -23,8 +23,10 @@ from aidebot.cogs.content_experience_v63 import (
 from main import EXTENSIONS, PUBLIC_SLASH_COMMANDS
 
 
-def test_v63_loads_last_without_new_public_slash_commands():
-    assert EXTENSIONS[-1] == "aidebot.cogs.content_experience_v63"
+def test_v63_loads_before_v64_without_new_public_slash_commands():
+    assert "aidebot.cogs.content_experience_v63" in EXTENSIONS
+    assert EXTENSIONS[-1] == "aidebot.cogs.panel_authority_v64"
+    assert EXTENSIONS.index("aidebot.cogs.panel_authority_v64") > EXTENSIONS.index("aidebot.cogs.content_experience_v63")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
 
 
