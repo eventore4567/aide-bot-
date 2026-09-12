@@ -36,9 +36,11 @@ def test_v47_premium_is_a_real_service_pack():
     assert len(PREMIUM_SERVICE_FORMS) >= 7
 
 
-def test_v47_has_five_server_templates_and_real_structure():
-    assert set(SERVER_TEMPLATES) == {"community", "gaming", "shop", "creator", "support"}
-    for data in SERVER_TEMPLATES.values():
+def test_v47_original_server_templates_remain_available_under_v48():
+    original = {"community", "gaming", "shop", "creator", "support"}
+    assert original.issubset(SERVER_TEMPLATES)
+    for key in original:
+        data = SERVER_TEMPLATES[key]
         assert len(data["categories"]) >= 4
         channel_count = sum(len(channels) for _category, channels in data["categories"])
         assert channel_count >= 9
@@ -47,7 +49,7 @@ def test_v47_has_five_server_templates_and_real_structure():
     assert len(view.children) == 1
     select = view.children[0]
     assert isinstance(select, discord.ui.Select)
-    assert len(select.options) == 5
+    assert len(select.options) >= 5
 
 
 def test_v47_server_build_metadata_is_parseable():
@@ -84,7 +86,7 @@ def test_v47_premium_videos_are_direct_links():
     assert "vidéos directes" in (embed.description or "").casefold()
 
 
-def test_v47_shop_exposes_server_order_and_full_pack():
+def test_v47_shop_still_exists_as_compatibility_layer():
     embed = premium_shop_embed(2000)
     text = ((embed.description or "") + "\n" + "\n".join(field.value for field in embed.fields)).casefold()
     assert "2000 robux" in text
@@ -96,15 +98,15 @@ def test_v47_shop_exposes_server_order_and_full_pack():
     assert "Acheter Premium" in labels
 
 
-def test_v47_extension_order_and_public_commands_stay_compact():
-    assert "aidebot.cogs.premium_service_v47" in EXTENSIONS
-    assert "aidebot.cogs.premium_service_v47_runtime" in EXTENSIONS
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v47_runtime") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
+def test_v47_is_superseded_by_v48_without_more_public_commands():
+    assert "aidebot.cogs.premium_service_v48" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v47" not in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v47_runtime" not in EXTENSIONS
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
     assert SERVER_BUILD_KEY == "premium_server_build"
 
 
-def test_v47_hub_has_many_choices_without_more_slash_commands():
+def test_v47_hub_remains_importable_for_backwards_compatibility():
     view = PremiumServiceHubView(DummyBot())
     selects = [item for item in view.children if isinstance(item, discord.ui.Select)]
     assert len(selects) == 1
