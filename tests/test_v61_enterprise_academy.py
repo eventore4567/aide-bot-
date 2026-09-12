@@ -37,8 +37,9 @@ def _channels():
 
 def test_v61_is_preserved_before_v62_without_extra_public_slash_commands():
     assert "aidebot.cogs.enterprise_academy_v61" in EXTENSIONS
-    assert EXTENSIONS[-1] == "aidebot.cogs.simple_help_v62"
+    assert "aidebot.cogs.simple_help_v62" in EXTENSIONS
     assert EXTENSIONS.index("aidebot.cogs.simple_help_v62") > EXTENSIONS.index("aidebot.cogs.enterprise_academy_v61")
+    assert EXTENSIONS.index("aidebot.cogs.content_experience_v63") > EXTENSIONS.index("aidebot.cogs.simple_help_v62")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
     assert PERMANENT_CHANNEL_COUNT == 15
     assert _channels().count("🎓・formations") == 1

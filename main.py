@@ -55,6 +55,7 @@ EXTENSIONS = (
     "aidebot.cogs.product_suite_v60",
     "aidebot.cogs.enterprise_academy_v61",
     "aidebot.cogs.simple_help_v62",
+    "aidebot.cogs.content_experience_v63",
 )
 
 PUBLIC_SLASH_COMMANDS = {"setup", "buy"}
