@@ -7,7 +7,7 @@ from aidebot.cogs.center import CenterView, center_embed
 from aidebot.message_reconcile import find_bot_embed_by_title
 
 
-CENTER_TITLE = "Aide Bot — Centre d’aide & formations"
+CENTER_TITLE = "Aide Bot — Centre d’aide"
 CENTER_CHANNEL = "🎓・centre-aide"
 
 
