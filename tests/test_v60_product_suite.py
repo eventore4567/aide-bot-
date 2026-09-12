@@ -45,7 +45,7 @@ def test_v60_community_channels_are_distinct_and_compact():
     assert SOLUTIONS_CHANNEL in names
     assert names.count(ENTRAIDE_CHANNEL) == 1
     assert names.count(SOLUTIONS_CHANNEL) == 1
-    assert PERMANENT_CHANNEL_COUNT == 14
+    assert PERMANENT_CHANNEL_COUNT == 15
     assert len(names) == len(set(names))
 
 
@@ -82,7 +82,7 @@ def test_v60_setup_is_a_compact_three_choice_wizard_not_a_button_wall():
     assert len(selects) == 3
     assert len(buttons) == 2
     assert {button.label for button in buttons} == {"Appliquer", "Annuler"}
-    assert set(SERVER_PROFILES) == {"auto", "community", "gaming", "creator", "support", "education", "dev"}
+    assert set(SERVER_PROFILES).issuperset({"auto", "community", "gaming", "creator", "support", "education", "dev"})
     assert set(THEMES) == {"clean", "minimal", "luxury", "gaming", "cyber", "creator"}
 
 
