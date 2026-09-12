@@ -108,10 +108,11 @@ def test_v49_score_labels_are_clear():
     assert _score_label(30) == "Prioritaire"
 
 
-def test_v49_runtime_supersedes_v48_without_more_public_commands():
-    assert "aidebot.cogs.premium_service_v49" in EXTENSIONS
+def test_v49_is_compatibility_layer_while_v50_owns_runtime():
+    assert "aidebot.cogs.premium_service_v50" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v49" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48_runtime" in EXTENSIONS
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v49") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v49")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v50") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v50")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
