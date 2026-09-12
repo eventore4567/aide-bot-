@@ -14,7 +14,7 @@ from aidebot.cogs.premium_service_v48 import (
     server_templates_v48_embed,
 )
 # The runtime cleanup intentionally keeps V48 service-only routes out of the
-# public classic training catalog while preserving the V48 service dictionaries.
+# public classic training catalog while preserving the service dictionaries.
 import aidebot.cogs.premium_service_v48_runtime  # noqa: F401,E402
 from main import EXTENSIONS, PUBLIC_SLASH_COMMANDS
 
@@ -118,11 +118,12 @@ def test_v48_hub_has_services_audit_videos_and_member_space():
     assert {"Créer mon serveur", "Audit instantané", "Vidéos VIP", "Mon espace", "Statut VIP"}.issubset(labels)
 
 
-def test_v48_replaces_v47_runtime_without_expanding_slash_surface():
-    assert "aidebot.cogs.premium_service_v48" in EXTENSIONS
+def test_v48_is_kept_for_compatibility_but_v49_owns_runtime():
+    assert "aidebot.cogs.premium_service_v49" in EXTENSIONS
+    assert "aidebot.cogs.premium_service_v48" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v48_runtime" in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47" not in EXTENSIONS
     assert "aidebot.cogs.premium_service_v47_runtime" not in EXTENSIONS
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
-    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v48")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v49") > EXTENSIONS.index("aidebot.cogs.ticket_experience")
+    assert EXTENSIONS.index("aidebot.cogs.premium_service_v48_runtime") > EXTENSIONS.index("aidebot.cogs.premium_service_v49")
     assert PUBLIC_SLASH_COMMANDS == {"setup", "buy"}
