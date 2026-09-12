@@ -30,11 +30,12 @@ def _assert_embed_safe(embed) -> None:
 
 def test_panel_first_server_structure_is_compact_and_distinct():
     channels = _channel_names()
-    assert PERMANENT_CHANNEL_COUNT <= 14
+    assert PERMANENT_CHANNEL_COUNT <= 15
     assert len(channels) == len(set(channels))
     assert "👋・bienvenue" in channels
     assert "🎓・centre-aide" in channels
     assert "🎓・formations" in channels
+    assert "💬・général" in channels
     assert "🤝・entraide" in channels
     assert "📌・solutions" in channels
     assert "🛒・shop" in channels

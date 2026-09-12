@@ -23,7 +23,7 @@ ROLE_SPECS = [
 CATEGORY_SPECS = [
     ("━━ INFORMATIONS ━━", ["👋・bienvenue", "📜・règlement", "📢・annonces"]),
     ("━━ AIDE & FORMATIONS ━━", ["🎓・centre-aide", "🎓・formations"]),
-    ("━━ COMMUNAUTÉ ━━", ["🤝・entraide", "📌・solutions"]),
+    ("━━ COMMUNAUTÉ ━━", ["💬・général", "🤝・entraide", "📌・solutions"]),
     ("━━ BOUTIQUE ━━", ["🛒・shop"]),
     ("━━ PREMIUM ━━", ["💎・espace-premium"]),
     ("━━ SERVICES ━━", ["⭐・avis", "🧑‍🏫・recrutement"]),
@@ -31,7 +31,7 @@ CATEGORY_SPECS = [
 ]
 
 PERMANENT_CHANNEL_COUNT = sum(len(channels) for _, channels in CATEGORY_SPECS)
-assert PERMANENT_CHANNEL_COUNT <= 14
+assert PERMANENT_CHANNEL_COUNT <= 15
 
 
 def role_permissions(spec: dict[str, bool]) -> discord.Permissions:

@@ -20,7 +20,7 @@ def test_v45_premium_resources_survive_v60_compact_expansion():
     assert PREMIUM_CATEGORY in categories
     assert categories[PREMIUM_CATEGORY] == [PREMIUM_HUB_CHANNEL]
     assert PREMIUM_VIDEO_CHANNEL not in categories[PREMIUM_CATEGORY]
-    assert PERMANENT_CHANNEL_COUNT <= 14
+    assert PERMANENT_CHANNEL_COUNT <= 15
 
 
 def test_premium_video_library_is_large_and_search_based():
